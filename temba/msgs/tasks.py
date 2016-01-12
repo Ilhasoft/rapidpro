@@ -35,8 +35,6 @@ def process_message_task(msg_id, from_mage=False, new_contact=False):
     key = 'pcm_%d' % msg.contact_id
     if not r.get(key):
         with r.lock(key, timeout=120):
-            print "M[%09d] Processing - %s" % (msg.id, msg.text)
-            start = time.time()
 
             # if message was created in Mage...
             if from_mage:
@@ -45,7 +43,6 @@ def process_message_task(msg_id, from_mage=False, new_contact=False):
                     mage_handle_new_contact(msg.org, msg.contact)
 
             Msg.process_message(msg)
-            print "M[%09d] %08.3f s - %s" % (msg.id, time.time() - start, msg.text)
 
 
 @task(track_started=True, name='send_broadcast')
@@ -185,7 +182,6 @@ def check_messages_task():
             unhandled_count = unhandled_messages.count()
 
             if unhandled_count:
-                print "** Found %d unhandled messages" % unhandled_count
                 for msg in unhandled_messages[:100]:
                     msg.handle()
 
@@ -236,10 +232,7 @@ def handle_event_task():
                 event = EventFire.objects.filter(pk=event_task['id'], fired=None)\
                                          .select_related('event', 'event__campaign', 'event__campaign__org').first()
                 if event:
-                    print "E[%09d] Firing for org: %s" % (event.id, event.event.campaign.org.name)
-                    start = time.time()
                     event.fire()
-                    print "E[%09d] %08.3f s" % (event.id, time.time() - start)
 
     else:
         raise Exception("Unexpected event type: %s" % event_task)

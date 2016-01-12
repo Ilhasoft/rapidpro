@@ -26,6 +26,7 @@ from . import format_decimal, slugify_with, str_to_datetime, str_to_time, trunca
 from . import PageableQuery, json_to_dict, dict_to_struct, datetime_to_ms, ms_to_datetime, dict_to_json, str_to_bool
 from . import percentage, datetime_to_json_date, json_date_to_datetime, timezone_to_country_code, non_atomic_gets
 from . import datetime_to_str
+from temba.utils.ascii import to_ascii
 
 
 class InitTest(TembaTest):
@@ -686,3 +687,12 @@ class TableExporterTest(TembaTest):
 
         self.assertEquals(67000+2-65536, sheet2.nrows)
         self.assertEquals(32, sheet2.ncols)
+
+
+class ASCIITest(TembaTest):
+
+    def test_to_ascii(self):
+        string = 'Á Ã Â É Ê Í Ó Ô Õ Ú Ç'
+        string_ascii = 'A A A E E I O O O U C'
+
+        self.assertTrue(to_ascii(string) == string_ascii)

@@ -28,7 +28,7 @@ def handle_asset_request(user, asset_type, pk):
             # return an HTTP Redirect to the source
             response = HttpResponseRedirect(location)
         else:
-            asset_file = open('.' + location, 'rb')
+            asset_file = open('/var/www/rapidpro' + location, 'rb')
             response = HttpResponse(asset_file, content_type=asset_type)
             response['Content-Disposition'] = 'attachment; filename=%s' % filename
 
