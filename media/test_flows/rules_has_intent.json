@@ -1,0 +1,101 @@
+{
+    "campaigns": [],
+    "version": 10,
+    "site": "https://app.rapidpro.io",
+    "flows": [
+        {
+            "base_language": "base",
+            "action_sets": [
+                {
+                    "y": 630,
+                    "x": 323,
+                    "destination": null,
+                    "uuid": "b583028e-ad1e-43d6-9ef4-4013d26fe509",
+                    "actions": [
+                        {
+                            "msg": {
+                                "base": "restaurant_search"
+                            },
+                            "media": {},
+                            "send_all": false,
+                            "type": "reply"
+                        }
+                    ]
+                },
+                {
+                    "y": 490,
+                    "x": 699,
+                    "destination": null,
+                    "uuid": "95dc885c-2dcd-4679-aae9-8de008a3ecdf",
+                    "actions": [
+                        {
+                            "msg": {
+                                "base": "hello"
+                            },
+                            "media": {},
+                            "send_all": false,
+                            "type": "reply"
+                        }
+                    ]
+                }
+            ],
+            "version": 10,
+            "flow_type": "F",
+            "entry": "f0a00cb3-8771-4f2b-9fef-1e7d7d87509d",
+            "rule_sets": [
+                {
+                    "uuid": "f0a00cb3-8771-4f2b-9fef-1e7d7d87509d",
+                    "rules": [
+                        {
+                            "category": {
+                                "base": "intent"
+                            },
+                            "uuid": "590b7609-53e1-4924-8437-0521f7ab66f0",
+                            "destination": "b583028e-ad1e-43d6-9ef4-4013d26fe509",
+                            "label": null,
+                            "destination_type": "A",
+                            "test": {
+                                "test": {
+                                    "intent": {
+                                        "bot_name": "bot-slug-92",
+                                        "name": "restaurant_search",
+                                        "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"
+                                    }
+                                },
+                                "type": "has_intent"
+                            }
+                        },
+                        {
+                            "category": {
+                                "base": "Other"
+                            },
+                            "uuid": "883c57f0-1971-42e6-ab19-cd1b8bac9249",
+                            "destination": "95dc885c-2dcd-4679-aae9-8de008a3ecdf",
+                            "label": null,
+                            "destination_type": "A",
+                            "test": {
+                                "type": "true"
+                            }
+                        }
+                    ],
+                    "ruleset_type": "wait_message",
+                    "label": "Response 1",
+                    "operand": "@step.value",
+                    "finished_key": null,
+                    "response_type": "",
+                    "y": 302,
+                    "x": 186,
+                    "config": {}
+                }
+            ],
+            "metadata": {
+                "expires": 10080,
+                "revision": 318,
+                "uuid": "302a867f-38b1-4840-a8f0-d5cadf8bbd96",
+                "name": "restaurant flow",
+                "saved_on": "2017-11-09T21:46:26.123384Z"
+            }
+        }
+    ],
+    "triggers": []
+}

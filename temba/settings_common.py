@@ -239,6 +239,7 @@ INSTALLED_APPS = (
     'temba.ussd',
     'temba.locations',
     'temba.values',
+    'temba.nlu',
     'temba.airtime',
 )
 
@@ -396,6 +397,7 @@ PERMISSIONS = {
                  'nexmo_configuration',
                  'nexmo_account',
                  'nexmo_connect',
+                 'nlu_api',
                  'plivo_connect',
                  'profile',
                  'resthooks',
@@ -447,6 +449,7 @@ PERMISSIONS = {
                    'export_results',
                    'filter',
                    'json',
+                   'nlu',
                    'recent_messages',
                    'results',
                    'revisions',
@@ -490,6 +493,7 @@ PERMISSIONS = {
                          'keyword',
                          'missed_call',
                          'new_conversation',
+                         'nlu_api',
                          'referral',
                          'register',
                          'schedule',
@@ -605,6 +609,7 @@ GROUP_PERMISSIONS = {
         'orgs.org_nexmo_account',
         'orgs.org_nexmo_connect',
         'orgs.org_nexmo_configuration',
+        'orgs.org_nlu_api',
         'orgs.org_plivo_connect',
         'orgs.org_profile',
         'orgs.org_resthooks',
@@ -1121,6 +1126,7 @@ SEND_CALLS = False
 MESSAGE_HANDLERS = [
     'temba.triggers.handlers.TriggerHandler',
     'temba.flows.handlers.FlowHandler',
+    'temba.triggers.handlers.NluApiHandler',
     'temba.triggers.handlers.CatchAllHandler'
 ]
 
@@ -1221,6 +1227,12 @@ CHATBASE_API_URL = 'https://chatbase.com/api/message'
 
 # To allow manage fields to support up to 1000 fields
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 4000
+
+# -----------------------------------------------------------------------------------
+# Bothub and WIT.AI integration url
+# -----------------------------------------------------------------------------------
+BOTHUB_BASE_URL = 'http://bothubapp-tornado-dev.us-east-1.elasticbeanstalk.com'
+WIT_AI_BASE_URL = 'https://api.wit.ai'
 
 # When reporting metrics we use the hostname of the physical machine, not the hostname of the service
 MACHINE_HOSTNAME = socket.gethostname().split('.')[0]

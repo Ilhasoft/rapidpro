@@ -30,6 +30,7 @@ from temba.flows.models import Flow, ActionSet, AddToGroupAction
 from temba.locations.models import AdminBoundary
 from temba.middleware import BrandingMiddleware
 from temba.msgs.models import Label, Msg, INCOMING
+from temba.nlu.models import NLU_BOTHUB_TAG, NLU_WIT_AI_TAG, NLU_API_KEY, NLU_API_NAME
 from temba.orgs.models import UserSettings, NEXMO_SECRET, NEXMO_KEY
 from temba.tests import TembaTest, MockResponse, MockTwilioClient, MockRequestValidator
 from temba.triggers.models import Trigger
@@ -394,7 +395,8 @@ class OrgTest(TembaTest):
             'editors': [self.editor.id],
             'administrators': [self.admin.id],
             'surveyors': [self.surveyor.id],
-            'surveyor_password': None
+            'surveyor_password': None,
+            'nlu_api_config': '{}'
         }
 
         response = self.client.post(update_url, post_data)
@@ -1420,8 +1422,87 @@ class OrgTest(TembaTest):
             contact = self.create_contact('Anakin Skywalker', '+12067791212')
             msg = self.create_msg(contact=contact, text="favs")
             Msg.process_message(msg)
-
             self.assertEqual(len(mock_post.mock_calls), 0)
+
+    def test_bothub_nlu_api(self):
+        self.login(self.admin)
+
+        self.org.refresh_from_db()
+
+        self.assertEqual((None, None), self.org.get_nlu_api_credentials())
+        self.assertEqual(dict(), self.org.nlu_api_config_json())
+
+        nlu_api_url = reverse('orgs.org_nlu_api')
+        response = self.client.get(nlu_api_url)
+        self.assertContains(response, 'NLU')
+
+        # Bothub.it test connect
+        # Without name
+        payload = dict(disconnect='false')
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.assertContains(response, "Incorrect data. Please check if all fields that were sent.")
+
+        # Without key
+        payload.update(dict(api_name=NLU_BOTHUB_TAG))
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.assertContains(response, "Incorrect data. Please check if all fields that were sent.")
+        with patch("temba.nlu.models.NluApiConsumer.is_valid_token") as mock:
+            mock.return_value = True
+            payload.update(dict(api_key_nlu='673d4c5f35be4d1e9e76eaafe56704c1'))
+            response = self.client.post(nlu_api_url, payload, follow=True)
+            self.assertNotContains(response, "Incorrect data. Please check if all fields that were sent.")
+
+        self.org.refresh_from_db()
+        self.assertEqual((NLU_BOTHUB_TAG, '673d4c5f35be4d1e9e76eaafe56704c1'), self.org.get_nlu_api_credentials())
+        self.assertEqual({NLU_API_NAME: NLU_BOTHUB_TAG, NLU_API_KEY: '673d4c5f35be4d1e9e76eaafe56704c1', 'extra_tokens': []}, self.org.nlu_api_config_json())
+
+        # Bothub.it test disconnect
+        payload.update(disconnect='true')
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.org.refresh_from_db()
+        self.assertEqual((None, None), self.org.get_nlu_api_credentials())
+
+    def test_wit_ai_nlu_api(self):
+        self.login(self.admin)
+
+        self.org.refresh_from_db()
+        self.assertEqual((None, None), self.org.get_nlu_api_credentials())
+        self.assertEqual(dict(), self.org.nlu_api_config_json())
+
+        nlu_api_url = reverse('orgs.org_nlu_api')
+        response = self.client.get(nlu_api_url)
+        self.assertContains(response, 'NLU')
+
+        # Wit.AI test connect
+        payload = dict(disconnect='false')
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.assertContains(response, "Incorrect data. Please check if all fields that were sent.")
+
+        payload.update(dict(api_name=NLU_WIT_AI_TAG))
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.assertContains(response, "Missing data: Bot Name. Please check them again and retry.")
+
+        payload.update(dict(bot_name='Name bot'))
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.assertNotContains(response, "Missing data: Bot Name. Please check them again and retry.")
+        self.assertContains(response, "Incorrect data. Please check if all fields that were sent.")
+
+        with patch("temba.nlu.models.NluApiConsumer.is_valid_token") as mock:
+            payload.update(dict(api_key_nlu='WIT_BOT_KEY'))
+            mock.return_value = True
+            response = self.client.post(nlu_api_url, payload, follow=True)
+            self.assertNotContains(response, "Incorrect data. Please check if all fields that were sent.")
+            self.assertNotContains(response, "Missing data: Bot Name. Please check them again and retry.")
+
+        self.org.refresh_from_db()
+        self.assertEqual((NLU_WIT_AI_TAG, ''), self.org.get_nlu_api_credentials())
+        self.assertEqual({NLU_API_NAME: NLU_WIT_AI_TAG, NLU_API_KEY: '', 'extra_tokens': [{'name': 'Name bot', 'token': 'WIT_BOT_KEY'}]}, self.org.nlu_api_config_json())
+
+        # Wit.AI test disconnect
+        payload.update(disconnect='true')
+        response = self.client.post(nlu_api_url, payload, follow=True)
+        self.org.refresh_from_db()
+        self.assertEqual((None, None), self.org.get_nlu_api_credentials())
 
     def test_resthooks(self):
         # no hitting this page without auth

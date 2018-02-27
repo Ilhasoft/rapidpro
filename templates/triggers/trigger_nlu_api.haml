@@ -1,0 +1,53 @@
+-extends 'smartmin/form.html'
+-load i18n
+
+-block summary
+  -trans "Start a flow based on NLU intent"
+
+-block extra-script
+  {{block.super}}
+  %script
+    $(document).ready(function() {
+      select2div("#id_nlu_api_flow", "520px");
+      select2div("#id_nlu_api_accuracy", "520px");
+
+      $("#id_nlu_api_bots").select2({
+        containerCssClass: "select2-temba-field"
+      });
+
+      $("#id_nlu_api_groups").select2({
+        containerCssClass: "select2-temba-field"
+      });
+
+      $("#id_nlu_api_bots").change(() => {
+        updateSelectFunc()
+      });
+
+      updateSelectFunc = () => {
+        updateSelect = $('#id_nlu_api_intents_from_entity')
+        updateSelect.select2('destroy').empty()
+
+        selectSplited = $("#id_nlu_api_bots").val().split('$')
+
+        entity = selectSplited[0]
+        token = selectSplited[1]
+
+        $.get("/flow/nlu?token="+ token +"&entity="+ entity, (data) => {
+          intentsFromEntity = data.intents_from_entity ? data.intents_from_entity : []
+          $.each(intentsFromEntity, function (i, item) {
+            updateSelect.append($('<option>', { 
+                value: item,
+                text: item
+            }));
+          });
+          updateSelect.select2("enable", true)
+        });
+
+        updateSelect.select2({
+          containerCssClass: "select2-temba-field"
+        });
+        updateSelect.select2("enable", false)
+      }
+
+      updateSelectFunc()
+    });

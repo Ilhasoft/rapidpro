@@ -37,6 +37,7 @@ from requests import Session
 from smartmin.models import SmartModel
 from temba.bundles import get_brand_bundles, get_bundle_map
 from temba.locations.models import AdminBoundary, BoundaryAlias
+from temba.nlu.models import NLU_API_KEY, NLU_API_NAME, NluApiConsumer, NLU_WIT_AI_TAG, NLU_BOTHUB_TAG
 from temba.utils import analytics, languages
 from temba.utils.cache import get_cacheable_result, get_cacheable_attr, incrby_existing
 from temba.utils.currencies import currency_for_country
@@ -234,6 +235,9 @@ class Org(SmartModel):
 
     parent = models.ForeignKey('orgs.Org', null=True, blank=True, help_text=_('The parent org that manages this org'))
 
+    nlu_api_config = models.TextField(null=True, verbose_name=_("NLU API Configuration"),
+                                      help_text=_('Settings for Natural Language Understand API'))
+
     @classmethod
     def get_unique_slug(cls, name):
         slug = slugify(name)
@@ -391,6 +395,12 @@ class Org(SmartModel):
     def config_json(self):
         if self.config:
             return json.loads(self.config)
+        else:
+            return dict()
+
+    def nlu_api_config_json(self):
+        if self.nlu_api_config:
+            return json.loads(self.nlu_api_config)
         else:
             return dict()
 
@@ -915,6 +925,60 @@ class Org(SmartModel):
             chatbase_api_key = config.get(CHATBASE_API_KEY, None)
             chatbase_version = config.get(CHATBASE_VERSION, None)
             return chatbase_api_key, chatbase_version
+        else:
+            return None, None
+
+    def connect_nlu_api(self, user, api_name, api_key, bot_name=None):
+        nlu_api_config = {
+            NLU_API_NAME: api_name,
+            NLU_API_KEY: api_key
+        }
+        if api_name == NLU_WIT_AI_TAG:
+            nlu_api_config[NLU_API_KEY] = ''
+            nlu_api_config['extra_tokens'] = [{'name': bot_name, 'token': api_key}]
+
+        self.set_new_nlu_config(user, json.dumps(nlu_api_config))
+
+    def remove_nlu_api(self, user):
+        from temba.triggers.models import Trigger
+        Trigger.remove_all_triggers_nlu(user)
+        self.set_new_nlu_config(user, None)
+
+    def add_extra_token(self, user, extra):
+        nlu_api_config = self.nlu_api_config_json()
+        if 'extra_tokens' not in nlu_api_config.keys():
+            nlu_api_config.update({'extra_tokens': []})
+
+        if not any(extra['token'] == extra_saved['token'] for extra_saved in nlu_api_config['extra_tokens']):
+            if nlu_api_config[NLU_API_NAME] == NLU_WIT_AI_TAG:
+                if NluApiConsumer.is_valid_token(nlu_api_config[NLU_API_NAME], extra.get('token')):
+                    nlu_api_config.get('extra_tokens').append(extra)
+
+            elif nlu_api_config[NLU_API_NAME] == NLU_BOTHUB_TAG:
+                consumer = NluApiConsumer.factory(self)
+                if consumer.is_valid_bot(extra.get('token')):
+                    nlu_api_config.get('extra_tokens').append(extra)
+
+            self.set_new_nlu_config(user, json.dumps(nlu_api_config))
+
+    def remove_extra_token(self, user, token):
+        nlu_api_config = self.nlu_api_config_json()
+        for extra_saved in nlu_api_config.get('extra_tokens', []):
+            if extra_saved['token'] == token:
+                nlu_api_config['extra_tokens'].remove(extra_saved)
+                self.set_new_nlu_config(user, json.dumps(nlu_api_config))
+
+    def set_new_nlu_config(self, user, config):
+        self.nlu_api_config = config
+        self.modified_by = user
+        self.save()
+
+    def get_nlu_api_credentials(self):
+        nlu_api_config = self.nlu_api_config_json()
+        if nlu_api_config:
+            nlu_api_name = nlu_api_config.get(NLU_API_NAME, None)
+            nlu_api_key = nlu_api_config.get(NLU_API_KEY, None)
+            return nlu_api_name, nlu_api_key
         else:
             return None, None
 

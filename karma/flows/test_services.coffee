@@ -20,6 +20,17 @@ describe 'Services:', ->
     $http.whenGET('/contactfield/json/').respond([])
     $http.whenGET('/label/').respond([])
 
+    $http.whenGET('/flow/nlu/').respond(
+      {
+        "intents":[
+          {"bot_name": "bot-slug-92", "name": "greet", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"},
+          {"bot_name": "bot-slug-92", "name": "affirm", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"},
+          {"bot_name": "bot-slug-92", "name": "restaurant_search", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"},
+          {"bot_name": "bot-slug-92", "name": "goodbye", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"}
+        ]
+      }
+    )
+
     for file, config of flows
 
       $http.whenGET('/flow/json/' + config.id + '/').respond(

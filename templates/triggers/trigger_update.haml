@@ -151,6 +151,60 @@
         $('#id_groups').select2({ containerCssClass: "select2-temba-field" });
       {% endif %}
 
+      {% if object.trigger_type == 'L' %}
+        $("#id_groups").select2({
+          containerCssClass: "select2-temba-field"
+        });
+        $("#id_bots").select2({
+          containerCssClass: "select2-temba-field"
+        });
+        $('#id_bots').val( {% autoescape off %} {{ intent_bot }} {% endautoescape %}).trigger('change');
+
+        $("#id_accuracy").select2({
+          containerCssClass: "select2-temba-field"
+        });
+        $("#id_accuracy").val({{ accuracy }})
+
+        {% if object.org.nlu_api_config_json.NLU_API_NAME == 'WIT' %}
+          $("#id_bots").change(() => {
+            updateSelectFunc()
+          });
+
+          updateSelectFunc = () => {
+            updateSelect = $('#id_intents_from_entity')
+            updateSelect.select2('destroy').empty()
+
+            selectSplited = $("#id_bots").val().split('$')
+
+            entity = selectSplited[0]
+            token = selectSplited[1]
+
+            $.get("/flow/nlu?token="+ token +"&entity="+ entity, (data) => {
+              intentsFromEntity = data.intents_from_entity ? data.intents_from_entity : []
+              $.each(intentsFromEntity, function (i, item) {
+                updateSelect.append($('<option>', {
+                    value: item,
+                    text: item
+                }));
+              });
+              intentsFromEntity = {% autoescape off %} {{intents_from_entity}} {% endautoescape %}
+
+              if(intentsFromEntity.length > 0){
+                updateSelect.val(intentsFromEntity).trigger("change");
+              }
+              updateSelect.select2("enable", true)
+            });
+
+            updateSelect.select2({
+              containerCssClass: "select2-temba-field"
+            });
+            updateSelect.select2("enable", false)
+          }
+
+          updateSelectFunc()
+        {% endif %}
+      {% endif %}
+
       new AutoComplete({{completions|safe}}, {{function_completions|safe}}).bind($('#id_response'));
 
       $('#id_flow').select2({

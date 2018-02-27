@@ -39,6 +39,7 @@ from temba.campaigns.models import Campaign
 from temba.channels.models import Channel
 from temba.flows.models import Flow
 from temba.formax import FormaxMixin
+from temba.nlu.models import NLU_API_NAME, NLU_API_KEY, NLU_API_CHOICES, NluApiConsumer, NLU_WIT_AI_TAG, NLU_BOTHUB_TAG
 from temba.utils import analytics, languages
 from temba.utils.timezones import TimeZoneFormField
 from temba.utils.email import is_valid_address
@@ -446,7 +447,7 @@ class UserSettingsCRUDL(SmartCRUDL):
 
 class OrgCRUDL(SmartCRUDL):
     actions = ('signup', 'home', 'webhook', 'edit', 'edit_sub_org', 'join', 'grant', 'accounts', 'create_login',
-               'chatbase', 'choose', 'manage_accounts', 'manage_accounts_sub_org', 'manage', 'update', 'country',
+               'chatbase', 'nlu_api', 'choose', 'manage_accounts', 'manage_accounts_sub_org', 'manage', 'update', 'country',
                'languages', 'clear_cache', 'twilio_connect', 'twilio_account', 'nexmo_configuration', 'nexmo_account',
                'nexmo_connect', 'sub_orgs', 'create_sub_org', 'export', 'import', 'plivo_connect', 'resthooks',
                'service', 'surveyor', 'transfer_credits', 'transfer_to_account', 'smtp_server')
@@ -2050,6 +2051,154 @@ class OrgCRUDL(SmartCRUDL):
 
             return super(OrgCRUDL.Chatbase, self).form_valid(form)
 
+    class NluApi(InferOrgMixin, OrgPermsMixin, SmartUpdateView):
+
+        class NluApiForm(forms.ModelForm):
+            api_name = forms.ChoiceField(label=_('NLU Service'), required=True,
+                                         help_text=_('Select the NLU Service'), choices=NLU_API_CHOICES)
+            bot_name = forms.CharField(max_length=255, label=_('Bot Name'), required=False,
+                                       help_text=_('Enter the bot name'))
+            bot_id = forms.CharField(max_length=255, label=_('Bot ID'), required=False,
+                                     help_text=_('Enter the bot ID'))
+            api_key_nlu = forms.CharField(max_length=255, label=_('API Key'), required=False,
+                                          help_text=_('Enter the NLU API Key'))
+            disconnect = forms.CharField(widget=forms.HiddenInput, max_length=6, required=True)
+
+            def clean(self):
+                super(OrgCRUDL.NluApi.NluApiForm, self).clean()
+
+                actions = [
+                    self.cleaned_data.get('disconnect', 'false'),
+                    self.cleaned_data.get('token', 'false')
+                ]
+
+                if 'true' not in actions:
+                    api_name = self.cleaned_data.get('api_name')
+                    bot_name = self.cleaned_data.get('bot_name')
+                    api_key_nlu = self.cleaned_data.get('api_key_nlu')
+
+                    if api_name == NLU_WIT_AI_TAG and not bot_name:
+                        raise ValidationError(_("Missing data: Bot Name. "
+                                                "Please check them again and retry."))
+
+                    elif not api_name or not api_key_nlu or not NluApiConsumer.is_valid_token(api_name, api_key_nlu):
+                        raise ValidationError(_("Incorrect data. Please check if all fields that were sent."))
+
+                return self.cleaned_data
+
+            class Meta:
+                model = Org
+                fields = ('api_name', 'bot_name', 'bot_id', 'api_key_nlu', 'disconnect')
+
+        class NluApiExtraForm(forms.ModelForm):
+            extra_token_name = forms.CharField(max_length=255, label=_('Bot Name'), required=True,
+                                               help_text=_('Enter the bot name'))
+            extra_token = forms.CharField(max_length=255, label=_('API Key'), required=True,
+                                          help_text=_('Enter the NLU API Key'))
+            token = forms.CharField(widget=forms.HiddenInput, max_length=4, required=True, initial='true')
+
+            def __init__(self, *args, **kwargs):
+                super(OrgCRUDL.NluApi.NluApiExtraForm, self).__init__(*args, **kwargs)
+                api_name, api_key = self.instance.get_nlu_api_credentials()
+                if api_name == NLU_BOTHUB_TAG:
+                    self.fields['extra_token'].label = _('Bot ID')
+                    self.fields['extra_token'].help_text = _('Enter the bot ID')
+
+            def clean(self):
+                super(OrgCRUDL.NluApi.NluApiExtraForm, self).clean()
+                if self.cleaned_data.get('token', 'false') == 'true':
+                    api_name, api_key = self.instance.get_nlu_api_credentials()
+                    extra_token_name = self.cleaned_data.get('extra_token_name')
+                    extra_token = self.cleaned_data.get('extra_token')
+
+                    if api_name == NLU_BOTHUB_TAG:
+                        valid_token = NluApiConsumer.is_valid_token(api_name, api_key, extra_token)
+                    else:
+                        valid_token = NluApiConsumer.is_valid_token(api_name, extra_token)
+
+                    if not extra_token_name or not extra_token or not valid_token:
+                        raise ValidationError(_("Incorrect data. Please check if all fields that were sent."))
+                return self.cleaned_data
+
+            class Meta:
+                model = Org
+                fields = ('extra_token_name', 'extra_token', 'token')
+
+        success_message = ''
+        success_url = '@orgs.org_home'
+
+        def get_form_class(self):
+            api_name, api_key = self.object.get_nlu_api_credentials()
+            if not api_name:
+                return OrgCRUDL.NluApi.NluApiForm
+            else:
+                return OrgCRUDL.NluApi.NluApiExtraForm
+
+        def derive_initial(self):
+            initial = super(OrgCRUDL.NluApi, self).derive_initial()
+            org = self.get_object()
+            config = org.nlu_api_config_json()
+            initial['api_name'] = config.get(NLU_API_NAME, '')
+            initial['api_key_nlu'] = config.get(NLU_API_KEY, '')
+            initial['extra_tokens'] = config.get('extra_tokens', '')
+            initial['disconnect'] = 'false'
+            return initial
+
+        def get_context_data(self, **kwargs):
+            context = super(OrgCRUDL.NluApi, self).get_context_data(**kwargs)
+            api_name, api_key = self.object.get_nlu_api_credentials()
+            extra_tokens = self.object.nlu_api_config_json().get('extra_tokens', None)
+            if api_name:
+                context['api_name'] = dict(NLU_API_CHOICES).get(api_name, None)
+                context['extra_tokens'] = extra_tokens
+
+            return context
+
+        def get(self, *args, **kwargs):
+            user = self.request.user
+            org = user.get_org()
+            if self.request.GET.get('delete_extra', 'false') == 'true':
+                nlu_api_config = org.nlu_api_config_json()
+                if len(nlu_api_config.get('extra_tokens', [])) > 1 or org.nlu_api_config_json().get(NLU_API_NAME) == NLU_BOTHUB_TAG:
+                    org.remove_extra_token(user, self.request.GET.get('token'))
+                else:
+                    org.remove_nlu_api(user)
+                return HttpResponseRedirect(reverse('orgs.org_home'))
+
+            return super(OrgCRUDL.NluApi, self).get(self, *args, **kwargs)
+
+        def post(self, *args, **kwargs):
+            user = self.request.user
+            org = user.get_org()
+
+            if self.request.POST.get('disconnect', 'false') == 'true':
+                org.remove_nlu_api(user)
+                return HttpResponseRedirect(reverse('orgs.org_home'))
+
+            if self.request.POST.get('token', 'false') == 'true':
+                extra_token_name = self.request.POST.get('extra_token_name')
+                extra_token = self.request.POST.get('extra_token')
+                org.add_extra_token(user, dict(name=extra_token_name, token=extra_token))
+
+            return super(OrgCRUDL.NluApi, self).post(self, *args, **kwargs)
+
+        def form_valid(self, form):
+            user = self.request.user
+            org = user.get_org()
+            if not form.cleaned_data.get('extra_token'):
+                api_name = form.cleaned_data.get('api_name')
+                api_key = form.cleaned_data.get('api_key_nlu')
+                bot_name = form.cleaned_data.get('bot_name')
+                bot_id = form.cleaned_data.get('bot_id')
+
+                if api_name == NLU_WIT_AI_TAG:
+                    org.connect_nlu_api(user, api_name, api_key, bot_name)
+                else:
+                    org.connect_nlu_api(user, api_name, api_key)
+                    org.add_extra_token(user, dict(name=bot_name, token=bot_id))
+
+            return super(OrgCRUDL.NluApi, self).form_valid(form)
+
     class Home(FormaxMixin, InferOrgMixin, OrgPermsMixin, SmartReadView):
         title = _("Your Account")
 
@@ -2131,6 +2280,15 @@ class OrgCRUDL(SmartCRUDL):
                                        action='redirect', button=_("Connect"))
                 else:  # pragma: needs cover
                     formax.add_section('chatbase', reverse('orgs.org_chatbase'), icon='icon-chatbase',
+                                       action='redirect', nobutton=True)
+
+            if self.has_org_perm('orgs.org_nlu_api'):
+                nlu_api_name, nlu_api_key = self.object.get_nlu_api_credentials()
+                if not nlu_api_name:
+                    formax.add_section('nlu_api', reverse('orgs.org_nlu_api'), icon='icon-robot-nlu',
+                                       action='redirect', button=_("Connect"))
+                else:  # pragma: needs cover
+                    formax.add_section('nlu_api', reverse('orgs.org_nlu_api'), icon='icon-robot-nlu',
                                        action='redirect', nobutton=True)
 
             if self.has_org_perm('orgs.org_webhook'):

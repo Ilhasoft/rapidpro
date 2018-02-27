@@ -34,6 +34,7 @@ from temba.orgs.views import OrgPermsMixin, OrgObjPermsMixin, ModalMixin
 from temba.flows.models import Flow, FlowRun, FlowRevision, FlowRunCount
 from temba.flows.tasks import export_flow_results_task
 from temba.msgs.models import Msg, PENDING
+from temba.nlu.models import NluApiConsumer
 from temba.triggers.models import Trigger
 from temba.utils import analytics, on_transaction_commit, chunk_list
 from temba.utils.dates import datetime_to_str
@@ -204,7 +205,7 @@ class FlowRunCRUDL(SmartCRUDL):
 
 class FlowCRUDL(SmartCRUDL):
     actions = ('list', 'archived', 'copy', 'create', 'delete', 'update', 'simulate', 'export_results',
-               'upload_action_recording', 'editor', 'results', 'run_table', 'category_counts', 'json',
+               'upload_action_recording', 'editor', 'results', 'run_table', 'category_counts', 'json', 'nlu',
                'broadcast', 'activity', 'activity_chart', 'filter', 'campaign', 'completion', 'revisions',
                'recent_messages', 'upload_media_action')
 
@@ -680,6 +681,19 @@ class FlowCRUDL(SmartCRUDL):
 
             return qs
 
+    class Nlu(OrgPermsMixin, SmartListView):
+        def render_to_response(self, context, **response_kwargs):
+            consumer = NluApiConsumer.factory(self.request.user.get_org())
+            if self.request.GET.get('token') and self.request.GET.get('entity'):
+                return JsonResponse(dict(intents_from_entity=consumer.get_intents_from_entity(self.request.GET.get('token'),
+                                                                                              self.request.GET.get('entity'))))
+            if consumer:
+                try:
+                    return JsonResponse(dict(bots_intents=consumer.get_intents(), nlu_type=consumer.type))
+                except Exception:  # pragma: needs cover
+                    pass
+            return JsonResponse(dict(bots_intents=None, nlu_type=None))
+
     class Completion(OrgPermsMixin, SmartListView):
         def render_to_response(self, context, **response_kwargs):
 
@@ -741,6 +755,12 @@ class FlowCRUDL(SmartCRUDL):
                     flow_variables.append(dict(name='flow.%s.category' % key, display='%s Category' % rule_set.label))
                     flow_variables.append(dict(name='flow.%s.text' % key, display='%s Text' % rule_set.label))
                     flow_variables.append(dict(name='flow.%s.time' % key, display='%s Time' % rule_set.label))
+
+                    nlu_api_name, nlu_api_key = org.get_nlu_api_credentials()
+
+                    if nlu_api_name is not None:
+                        flow_variables.append(dict(name='flow.%s.intent' % key, display='%s Intent' % rule_set.label))
+                        flow_variables.append(dict(name='flow.%s.entities' % key, display='%s Entities' % rule_set.label))
 
             function_completions = get_function_listing()
             messages_completions = contact_variables + date_variables + flow_variables

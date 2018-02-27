@@ -29,6 +29,7 @@ from temba.ivr.models import IVRCall
 from temba.ussd.models import USSDSession
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, Label, Msg, INCOMING, PENDING, WIRED, OUTGOING, FAILED
+from temba.nlu.models import NLU_BOTHUB_TAG, NLU_WIT_AI_TAG
 from temba.orgs.models import Language, get_current_export_version
 from temba.tests import TembaTest, MockResponse, FlowFileTest
 from temba.triggers.models import Trigger
@@ -47,7 +48,7 @@ from .models import (
     Test, TrueTest, FalseTest, AndTest, OrTest, PhoneTest, NumberTest, EqTest, LtTest, LteTest,
     GtTest, GteTest, BetweenTest, ContainsOnlyPhraseTest, ContainsPhraseTest, DateEqualTest, DateAfterTest,
     DateBeforeTest, DateTest, StartsWithTest, ContainsTest, ContainsAnyTest, RegexTest, NotEmptyTest, HasStateTest,
-    HasDistrictTest, HasWardTest, HasEmailTest, SendAction, AddLabelAction, AddToGroupAction, ReplyAction,
+    HasDistrictTest, HasWardTest, HasEmailTest, HasIntentTest, SendAction, AddLabelAction, AddToGroupAction, ReplyAction,
     SaveToContactAction, SetLanguageAction, SetChannelAction, EmailAction, StartFlowAction, TriggerFlowAction,
     DeleteFromGroupAction, WebhookAction, ActionLog, VariableContactAction, UssdAction, FlowPathRecentRun,
     FlowUserConflictException, FlowVersionConflictException, FlowInvalidCycleException
@@ -1673,6 +1674,93 @@ class FlowTest(TembaTest):
         self.assertTest(False, None, NotEmptyTest())
         sms.text = "it works "
         self.assertTest(True, "it works", NotEmptyTest())
+
+        # has intents test
+        bot = {u'intent': {u'bot_name': u'bot-slug-92', u'name': u'restaurant_search', u'bot_id': u'706e1467-fa55-4562-b909-e09caca9b198'}}
+        sms.text = "I want food"
+        sms.org.connect_nlu_api(self.user, NLU_BOTHUB_TAG, 'API_KEY')
+        test = HasIntentTest(test=bot)
+        self.assertEqual(type(HasIntentTest.from_json(self.org, test.as_json())), HasIntentTest)
+        with patch('temba.nlu.models.BothubConsumer._request') as mock_get:
+            mock_get.return_value = MockResponse(200, """
+            {
+                "bot_uuid": "e5bf3007-2629-44e3-8cbe-4505ecb130e2",
+                "answer": {
+                    "text": "I am looking for a Mexican restaurant in the center of town",
+                    "entities": [
+                        {
+                            "start": 19,
+                            "value": "Mexican",
+                            "end": 26,
+                            "entity": "cuisine",
+                            "extractor": "ner_crf"
+                        },
+                        {
+                            "start": 45,
+                            "value": "center",
+                            "end": 51,
+                            "entity": "location",
+                            "extractor": "ner_crf"
+                        }
+                    ],
+                    "intent_ranking": [
+                        {
+                            "confidence": 0.731929302865667,
+                            "name": "restaurant_search"
+                        },
+                        {
+                            "confidence": 0.14645046976303883,
+                            "name": "goodbye"
+                        },
+                        {
+                            "confidence": 0.07863577626166107,
+                            "name": "greet"
+                        },
+                        {
+                            "confidence": 0.04298445110963322,
+                            "name": "affirm"
+                        }
+                    ],
+                    "intent": {
+                        "confidence": 0.731929302865667,
+                        "name": "restaurant_search"
+                    }
+                }
+            }
+            """)
+            self.assertTest(True, '{"entities": {"cuisine": "Mexican", "location": "center"}, "intent": "restaurant_search"}', test)
+            mock_get.return_value = MockResponse(200, """
+            {
+                "bot_uuid": "e5bf3007-2629-44e3-8cbe-4505ecb130e2",
+                "answer": {
+                    "text": "Goodbye",
+                    "entities": [],
+                    "intent_ranking": [
+                        {
+                            "confidence": 0.731929302865667,
+                            "name": "goodbye"
+                        },
+                        {
+                            "confidence": 0.14645046976303883,
+                            "name": "restaurant_search"
+                        },
+                        {
+                            "confidence": 0.07863577626166107,
+                            "name": "greet"
+                        },
+                        {
+                            "confidence": 0.04298445110963322,
+                            "name": "affirm"
+                        }
+                    ],
+                    "intent": {
+                        "confidence": 0.731929302865667,
+                        "name": "goodbye"
+                    }
+                }
+            }
+            """)
+            self.assertTest(False, None, test)
 
         def perform_date_tests(sms, dayfirst):
             """
@@ -5147,6 +5235,77 @@ class FlowsTest(FlowFileTest):
         response = self.client.get(recent_messages_url + blue_params)
         assert_recent(response, ["blue"])
 
+    def test_nlu_bothub(self):
+        self.login(self.admin)
+
+        self.org.refresh_from_db()
+
+        response = self.client.get(reverse('flows.flow_nlu'))
+        self.assertEqual(response.get('intents'), None)
+
+        with patch('temba.nlu.models.BothubConsumer.is_valid_token') as mock_is_valid_token:
+            mock_is_valid_token.return_value = True
+            payload = dict(api_name=NLU_BOTHUB_TAG, api_key_nlu='673d4c5f35be4d1e9e76eaafe56704c1', disconnect='false', token='false')
+            response = self.client.post(reverse('orgs.org_nlu_api'), payload, follow=True)
+
+        self.org.refresh_from_db()
+        self.assertEqual((NLU_BOTHUB_TAG, '673d4c5f35be4d1e9e76eaafe56704c1'), self.org.get_nlu_api_credentials())
+
+        with patch('temba.nlu.models.BothubConsumer.list_bots') as mock_list_bots:
+            mock_list_bots.return_value = [{"uuid": "706e1467-fa55-4562-b909-e09caca9b198", "slug": "bot-slug-92"}]
+            with patch('requests.request') as mock_get_intents:
+                mock_get_intents.return_value = MockResponse(200, '{"private": false, "intents": [ "greet", "affirm", "restaurant_search", "goodbye"], "slug": "bot-slug-92"}')
+                response = self.client.get(reverse('flows.flow_nlu'))
+                data = {
+                    "nlu_type": NLU_BOTHUB_TAG,
+                    "bots_intents": [
+                        {"bot_name": "bot-slug-92", "name": "greet", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"},
+                        {"bot_name": "bot-slug-92", "name": "affirm", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"},
+                        {"bot_name": "bot-slug-92", "name": "restaurant_search", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"},
+                        {"bot_name": "bot-slug-92", "name": "goodbye", "bot_id": "706e1467-fa55-4562-b909-e09caca9b198"}
+                    ]
+                }
+                self.assertEqual(response.json(), data)
+
+    def test_nlu_wit(self):
+        self.login(self.admin)
+
+        self.org.refresh_from_db()
+
+        response = self.client.get(reverse('flows.flow_nlu'))
+        self.assertEqual(response.get('intents'), None)
+
+        with patch('temba.nlu.models.WitConsumer.is_valid_token') as mock_is_valid_token:
+            mock_is_valid_token.return_value = True
+            payload = dict(api_name=NLU_WIT_AI_TAG, api_key_nlu='WIT_BOT_KEY', bot_name='bot name', disconnect='false', token='false')
+            response = self.client.post(reverse('orgs.org_nlu_api'), payload, follow=True)
+
+        self.org.refresh_from_db()
+        self.assertEqual((NLU_WIT_AI_TAG, ''), self.org.get_nlu_api_credentials())
+
+        with patch('requests.request') as mock_get_intents:
+            data = """
+            [
+                "greet",
+                "affirm",
+                "restaurant_search",
+                "goodbye"
+            ]
+            """
+            mock_get_intents.return_value = MockResponse(200, data)
+            response = self.client.get(reverse('flows.flow_nlu'))
+            data = {
+                "nlu_type": NLU_WIT_AI_TAG,
+                "bots_intents": [
+                    {"bot_name": "bot name", "name": "greet", "bot_id": "WIT_BOT_KEY"},
+                    {"bot_name": "bot name", "name": "affirm", "bot_id": "WIT_BOT_KEY"},
+                    {"bot_name": "bot name", "name": "restaurant_search", "bot_id": "WIT_BOT_KEY"},
+                    {"bot_name": "bot name", "name": "goodbye", "bot_id": "WIT_BOT_KEY"}
+                ]
+            }
+
+            self.assertEqual(response.json(), data)
+
     def test_completion(self):
 
         flow = self.get_flow('favorites')
@@ -5774,6 +5933,59 @@ class FlowsTest(FlowFileTest):
     def test_decimal_substitution(self):
         flow = self.get_flow('pick_a_number')
         self.assertEqual("You picked 3!", self.send_message(flow, "3"))
+
+    def test_has_intent(self):
+        flow = self.get_flow('rules_has_intent')
+        with patch('requests.request') as mock_get:
+            mock_get.return_value = MockResponse(200, """
+                        {
+                            "bot_uuid": "e5bf3007-2629-44e3-8cbe-4505ecb130e2",
+                            "answer": {
+                                "text": "I am looking for a Mexican restaurant in the center of town",
+                                "entities": [
+                                    {
+                                        "start": 19,
+                                        "value": "Mexican",
+                                        "end": 26,
+                                        "entity": "cuisine",
+                                        "extractor": "ner_crf"
+                                    },
+                                    {
+                                        "start": 45,
+                                        "value": "center",
+                                        "end": 51,
+                                        "entity": "location",
+                                        "extractor": "ner_crf"
+                                    }
+                                ],
+                                "intent_ranking": [
+                                    {
+                                        "confidence": 0.731929302865667,
+                                        "name": "restaurant_search"
+                                    },
+                                    {
+                                        "confidence": 0.14645046976303883,
+                                        "name": "goodbye"
+                                    },
+                                    {
+                                        "confidence": 0.07863577626166107,
+                                        "name": "greet"
+                                    },
+                                    {
+                                        "confidence": 0.04298445110963322,
+                                        "name": "affirm"
+                                    }
+                                ],
+                                "intent": {
+                                    "confidence": 0.731929302865667,
+                                    "name": "restaurant_search"
+                                }
+                            }
+                        }
+                        """)
+
+            self.org.connect_nlu_api(self.user, NLU_BOTHUB_TAG, 'API_KEY')
+            self.assertEqual("restaurant_search", self.send_message(flow, "I am looking for a Mexican restaurant in the center of town"))
 
     def test_rules_first(self):
         flow = self.get_flow('rules_first')

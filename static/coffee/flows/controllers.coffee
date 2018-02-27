@@ -1147,6 +1147,12 @@ NodeEditorController = ($rootScope, $scope, $modalInstance, $timeout, $log, Flow
   flow = Flow.flow
 
   $scope.flowFields = Flow.getFlowFields(ruleset)
+
+  if Flow.nluInformations instanceof Object
+    $scope.listBotsIntents = Flow.nluInformations.bots_intents
+    $scope.nluType = Flow.nluInformations.nlu_type
+    $scope.accuracyBaseList = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
   $scope.fieldIndexOptions = [{text:'first', id: 0},
                               {text:'second', id: 1},
                               {text:'third', id: 2},
@@ -1269,8 +1275,11 @@ NodeEditorController = ($rootScope, $scope, $modalInstance, $timeout, $log, Flow
         if rule._config.localized
           rule.test._base = rule.test.test[Flow.flow.base_language]
         else
-          rule.test =
-            _base: rule.test.test
+          type = rule.test.type
+          rule.test = _base: rule.test.test
+          if type == 'has_intent'
+            index = $scope.listBotsIntents.map((x) -> return x.name).indexOf(rule.test._base.intent.name)
+            rule.test._base.intent = $scope.listBotsIntents[index]
 
     # and finally the category name
     rule.category._base = rule.category[Flow.flow.base_language]
@@ -1302,14 +1311,46 @@ NodeEditorController = ($rootScope, $scope, $modalInstance, $timeout, $log, Flow
     scroll:false
     placeholder: "sort-placeholder"
 
-  $scope.updateCategory = (rule) ->
+  $scope.initHasIntent = (rule, clearIntents=false) ->
+    if not (rule.test._base instanceof Object)
+      rule.test._base = {}
+    else
+      if $scope.nluType == 'WIT' and rule.test._base.hasOwnProperty('intent')
+        if clearIntents
+          rule.test._base.intent_from_entity = '------'
+        rule.intentsFromEntityDisabled = true
+        rule.listBotsIntentsFromEntity = []
+        Flow.getIntentsFromEntity(rule.test._base.intent.bot_id, rule.test._base.intent.name).success (data) ->
+          rule.listBotsIntentsFromEntity = data.intents_from_entity
+          rule.listBotsIntentsFromEntity.unshift('------')
+          rule.intentsFromEntityDisabled = false
+      else
+        rule.intentsFromEntityDisabled = true
 
+  $scope.removeHasIntentProp = (rule) ->
+    if rule.test.hasOwnProperty('intent')
+      delete rule.test.intent
+    if rule.test.hasOwnProperty('intent_from_entity')
+      delete rule.test.intent_from_entity
+    if rule.hasOwnProperty('listBotsIntentsFromEntity')
+      delete rule.listBotsIntentsFromEntity
+    if rule.hasOwnProperty('intentsFromEntityDisabled')
+      delete rule.intentsFromEntityDisabled
+    if rule.test._base instanceof Object
+      if rule.test._base.hasOwnProperty('intent') or rule.test._base.hasOwnProperty('intent_from_entity')
+        delete rule.test._base
+
+  $scope.updateCategory = (rule) ->
     # only auto name things if our flag is set
     # we don't want to update categories if they've been set
-    if not rule.category._autoName
+    if not rule.category._autoName and rule._config.type != 'has_intent'
       return
-
     categoryName = $scope.getDefaultCategory(rule)
+
+    if rule._config.type != 'has_intent'
+      $scope.removeHasIntentProp(rule)
+    else
+      $scope.initHasIntent(rule, true)
 
     if rule.category
       rule.category._base = categoryName
@@ -1337,7 +1378,7 @@ NodeEditorController = ($rootScope, $scope, $modalInstance, $timeout, $log, Flow
   $scope.getDefaultCategory = (rule) ->
 
     categoryName = ''
-    if rule.test and rule.test._base
+    if rule.test and rule.test._base? and typeof(rule.test._base) == "string" and rule._config.type != "has_intent"
       categoryName = rule.test._base.strip()
 
     op = rule._config.type
@@ -1363,6 +1404,11 @@ NodeEditorController = ($rootScope, $scope, $modalInstance, $timeout, $log, Flow
       categoryName = "phone"
     else if op == "has_email"
       categoryName = "email"
+    else if op == "has_intent"
+      categoryName = "intent"
+      if rule.test._base instanceof Object
+        if rule.test._base.hasOwnProperty('intent')
+          categoryName = rule.test._base.intent.name
     else if op == "regex"
       categoryName = "matches"
     else if op == "date"
@@ -1672,6 +1718,10 @@ NodeEditorController = ($rootScope, $scope, $modalInstance, $timeout, $log, Flow
       fieldChecks.push(formData.webhook)
     
     for rule in $scope.ruleset.rules
+      if rule.hasOwnProperty('intentsFromEntityDisabled')
+        delete rule.intentsFromEntityDisabled
+      if rule.hasOwnProperty('listBotsIntentsFromEntity')
+        delete rule.listBotsIntentsFromEntity
       if rule.test._base
         fieldChecks.push(rule.test._base)
     

@@ -1,0 +1,149 @@
+-extends 'smartmin/form.html'
+
+-load compress temba smartmin i18n
+
+-block form-span
+
+-block title-text
+  .title-text
+    %h1
+      -trans "Natural Language Understand Service"
+
+-block summary
+  -if api_name
+    -trans "Connected to NLU Service"
+    %b
+      {{api_name}}.
+  -else
+    -trans "Connect your NLU Service"
+
+-block pre-form
+  -if not api_name
+    -blocktrans
+      Connecting a Natural Language Understanding service allows you to get entities and intents from contacts messages.
+    %br
+    .doc-bothub.hide
+      -blocktrans
+        Documentation link:
+        %a{href: 'https://github.com/push-flow/bothub-nlp/wiki/Bothub-API-Documentation', target: '_blank'}=
+          https://github.com/push-flow/bothub-nlp/wiki/Bothub-API-Documentation
+    .doc-wit.hide
+      -blocktrans
+        Documentation link:
+        %a{href: 'https://wit.ai/docs/quickstart', target: '_blank'}=
+          https://wit.ai/docs/quickstart
+    %hr
+
+-block fields
+  {{ block.super }}
+
+  -if api_name
+    %button{class: 'btn btn-add-token'}
+      -trans "Add token"
+
+  -if extra_tokens
+    %p
+      %table{class: "table"}
+        %tbody
+          %tr
+            %th
+              -trans "Name"
+            %th
+              -trans "Token"
+            %th
+              -trans "Action"
+
+        -for extra in extra_tokens
+          %tr
+            %td
+              {{extra.name}}
+            %td
+              {{extra.token}}
+            %td
+              %a{href:'{% url "orgs.org_nlu_api" %}?delete_extra=true&token={{extra.token}}'}
+                -trans "Delete"
+
+-block form-buttons
+
+-block post-form
+  -if api_name
+    %p
+      -trans "Your NLU Service is connected"
+      %b
+        {{api_name}}.
+
+    %p
+      -trans "If you no longer want it connected, you can"
+      %a{href:'javascript:confirmNluApiDisconnect();'}
+        %b
+          -trans "disconnect"
+
+      -trans "your NLU Service."
+      %p
+        %b
+          -trans "Doing so will interrupt flows that use NLU."
+
+    .disconnect-nlu-api.hide
+      .title
+        -trans "Disconnect NLU Service"
+      .body
+        -blocktrans
+          This will disconnect your NLU Service. Are you sure you want to proceed?
+    %a#disconnect-nlu-api-form.posterize{href:'{% url "orgs.org_nlu_api" %}?disconnect=true'}
+
+-block extra-script
+  :javascript
+
+    function hideAndShow(botType) {
+      if(botType == 'WIT') {
+        $('.field_bot_id').eq(0).hide()
+        $('.doc-wit').eq(0).show()
+        $('.doc-bothub').eq(0).hide()
+      } else {
+        $('.field_bot_id').eq(0).show()
+        $('.doc-wit').eq(0).hide()
+        $('.doc-bothub').eq(0).show()
+      }
+    }
+
+    $(document).ready(function() {
+      select2div('#id_api_name');
+
+      if($('#id_api_name').val()) {
+        if($('#id_api_key').val()) {
+          $('.field_api_name').eq(0).hide()
+        }
+
+        hideAndShow($('#id_api_name').val());
+      }
+
+      $('#id_api_name').change(() => {
+        hideAndShow($('#id_api_name').val());
+      });
+
+      $("a.posterize").click((event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        var href = $(this).attr("href");
+        var url = $.url(href);
+
+        $("#posterizer").attr("action", url.attr("path"));
+
+        for (var key in url.param()){
+          $("#posterizer").append("<input type='hidden' name='" + key + "' value='" + url.param(key) + "'></input>");
+        }
+
+        $("#posterizer").submit();
+      });
+
+    });
+    function confirmNluApiDisconnect() {
+      removalConfirmation("disconnect-nlu-api", "Disconnect");
+    }
+
+-block extra-style
+  :css
+    .btn-add-token {
+      margin: 0 0 10px 0;
+    }

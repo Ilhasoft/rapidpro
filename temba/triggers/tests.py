@@ -16,6 +16,7 @@ from temba.contacts.models import TEL_SCHEME, Contact
 from temba.flows.models import Flow, ActionSet, FlowRun
 from temba.orgs.models import Language
 from temba.msgs.models import Msg, INCOMING
+from temba.nlu.models import NLU_WIT_AI_TAG, NLU_BOTHUB_TAG
 from temba.schedules.models import Schedule
 from temba.tests import TembaTest, MockResponse
 from .models import Trigger
@@ -931,6 +932,204 @@ class TriggerTest(TembaTest):
         # trigger should no longer be active
         group_catch_all.refresh_from_db()
         self.assertFalse(group_catch_all.is_active)
+
+    def test_catch_nlu_trigger_wit(self):
+        self.login(self.admin)
+        trigger_nlu = Trigger.get_triggers_of_type(self.org, Trigger.TYPE_NLU_API).first()
+        flow = self.get_flow('color')
+
+        contact = self.create_contact("Ali", "250788739305")
+
+        self.assertFalse(trigger_nlu)
+
+        Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "Hi")
+        self.assertEqual(1, Msg.objects.all().count())
+        self.assertEqual(0, flow.runs.all().count())
+
+        trigger_url = reverse("triggers.trigger_nlu_api")
+
+        response = self.client.get(trigger_url)
+        self.assertEqual(response.status_code, 302)
+
+        payload = dict(api_name=NLU_WIT_AI_TAG, api_key_nlu='WIT_BOT_KEY', bot_name='Bot name', disconnect='false')
+        with patch('temba.nlu.models.WitConsumer.is_valid_token') as mock_validation:
+            mock_validation.return_value = True
+            response = self.client.post(reverse('orgs.org_nlu_api'), payload, follow=True)
+        self.org.refresh_from_db()
+
+        with patch('temba.nlu.models.WitConsumer.get_intents') as mock_get_intents:
+            mock_get_intents.return_value = [
+                {
+                    "bot_name": "BotName",
+                    "name": "intent",
+                    "bot_id": "WIT_AI_TOKEN"
+                }, {
+                    "bot_name": "BotName",
+                    "name": "affirm",
+                    "bot_id": "WIT_AI_TOKEN"
+                }, {
+                    "bot_name": "BotName",
+                    "name": "restaurant_search",
+                    "bot_id": "WIT_AI_TOKEN"
+                }, {
+                    "bot_name": "BotName",
+                    "name": "goodbye",
+                    "bot_id": "WIT_AI_TOKEN"
+                }
+            ]
+
+            response = self.client.get(trigger_url)
+            self.assertEqual(response.status_code, 200)
+            group = self.create_group("Trigger Group", [])
+
+            post_data = dict(flow=flow.pk, accuracy=60, bots=['intent$WIT_AI_TOKEN$BotName'], intents_from_entity='greet', groups=[group.pk])
+            response = self.client.post(trigger_url, post_data)
+
+        trigger = Trigger.objects.all().order_by('-pk')[0]
+
+        self.assertEqual(trigger.trigger_type, Trigger.TYPE_NLU_API)
+        self.assertEqual(trigger.flow.pk, flow.pk)
+        get_nlu_data = trigger.get_nlu_data()
+        self.assertEqual(get_nlu_data['intents_replaced'], 'intent - BotName')
+        self.assertEqual(get_nlu_data['intents_splited'], ['intent'])
+        self.assertEqual(get_nlu_data['accuracy'], 60)
+
+        trigger_nlu = Trigger.get_triggers_of_type(self.org, Trigger.TYPE_NLU_API).first()
+
+        self.assertEqual(trigger_nlu.pk, trigger.pk)
+
+        with patch('requests.request') as mock_get:
+            mock_get.side_effect = Exception('Fail request')
+            Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "i want chinese food")
+            self.assertEqual(0, flow.runs.all().count())
+
+        with patch('requests.request') as mock_get:
+            mock_return_wit = '{"msg_id":"0GhmeqSm6P3Wkz0P0","_text":"greet","entities":{"intent":[{"confidence":%s,"value":"greet"}]}}'
+            mock_get.return_value = MockResponse(200, mock_return_wit % '0.35233400021608')
+            Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "Hello")
+            self.assertEqual(0, flow.runs.all().count())
+
+            mock_get.return_value = MockResponse(200, mock_return_wit % '0.65233400021608')
+            Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "Hello")
+            self.assertEqual(1, flow.runs.all().count())
+
+        payload = dict(disconnect='true')
+        self.client.post(reverse('orgs.org_nlu_api'), payload, follow=True)
+        self.org.refresh_from_db()
+        self.assertEqual(Trigger.get_triggers_of_type(self.org, Trigger.TYPE_NLU_API).first(), None)
+
+    def test_catch_nlu_trigger_bothub(self):
+        self.login(self.admin)
+        trigger_nlu = Trigger.get_triggers_of_type(self.org, Trigger.TYPE_NLU_API).first()
+        flow = self.get_flow('color')
+
+        contact = self.create_contact("Ali", "250788739305")
+
+        self.assertFalse(trigger_nlu)
+
+        Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "Hi")
+        self.assertEqual(1, Msg.objects.all().count())
+        self.assertEqual(0, flow.runs.all().count())
+
+        trigger_url = reverse("triggers.trigger_nlu_api")
+
+        response = self.client.get(trigger_url)
+        self.assertEqual(response.status_code, 302)
+
+        payload = dict(api_name=NLU_BOTHUB_TAG, api_key_nlu='BOTHUB_KEY', disconnect='false')
+        with patch('temba.nlu.models.BothubConsumer.is_valid_token') as mock_validation:
+            mock_validation.return_value = True
+            self.client.post(reverse('orgs.org_nlu_api'), payload, follow=True)
+        self.org.refresh_from_db()
+
+        with patch('temba.nlu.models.BothubConsumer.get_intents') as mock_get_intents:
+            mock_get_intents.return_value = [
+                {
+                    "bot_name": "bot-slug-232232222",
+                    "name": "greet",
+                    "bot_id": "4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca"
+                }, {
+                    "bot_name": "bot-slug-232232222",
+                    "name": "affirm",
+                    "bot_id": "4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca"
+                }, {
+                    "bot_name": "bot-slug-232232222",
+                    "name": "restaurant_search",
+                    "bot_id": "4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca"
+                }, {
+                    "bot_name": "bot-slug-232232222",
+                    "name": "goodbye",
+                    "bot_id": "4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca"
+                }
+            ]
+
+            response = self.client.get(reverse('triggers.trigger_create'))
+            self.assertContains(response, "NLU")
+
+            response = self.client.get(trigger_url)
+            self.assertEqual(response.status_code, 200)
+
+            post_data = dict(flow=flow.pk, accuracy=70, bots=['restaurant_search$4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca$bot-slug-232232222'])
+            response = self.client.post(trigger_url, post_data)
+
+            trigger_nlu = Trigger.get_triggers_of_type(self.org, Trigger.TYPE_NLU_API).first()
+
+            update_url = reverse('triggers.trigger_update', args=[trigger_nlu.pk])
+            response = self.client.get(update_url)
+
+            post_data = dict(flow=flow.pk, accuracy=60, bots=['goodbye$4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca$bot-slug-232232222', 'restaurant_search$4a3f085a-d4d0-4fb8-bdb2-ba0e4a87b6ca$bot-slug-232232222'])
+            response = self.client.post(update_url, post_data)
+            self.assertEqual(response.status_code, 302)
+
+            with patch('requests.request') as mock_get:
+                mock_get.side_effect = Exception('Fail request')
+                Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "i want chinese food")
+                self.assertEqual(0, flow.runs.all().count())
+
+            with patch('requests.request') as mock_get:
+                mock_return_bothub = """
+                {
+                    "bot_uuid": "53c800c6-9e90-4ede-b3b8-723596bd8b2e",
+                    "answer": {
+                        "text": "i want chinese food",
+                        "entities": [],
+                        "intent_ranking": [
+                            {
+                                "confidence": 0.6948301844545473,
+                                "name": "restaurant_search"
+                            },
+                            {
+                                "confidence": 0.1375480668428505,
+                                "name": "goodbye"
+                            },
+                            {
+                                "confidence": 0.09062990371961123,
+                                "name": "greet"
+                            },
+                            {
+                                "confidence": 0.07699184498299105,
+                                "name": "affirm"
+                            }
+                        ],
+                        "intent": {
+                            "confidence": %s,
+                            "name": "restaurant_search"
+                        }
+                    }
+                }
+                """
+                mock_get.return_value = MockResponse(200, mock_return_bothub % '0.35233400021608')
+                Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "i want chinese food")
+                self.assertEqual(0, flow.runs.all().count())
+
+                mock_get.return_value = MockResponse(200, mock_return_bothub % '0.6948301844545473')
+                Msg.create_incoming(self.channel, six.text_type(contact.get_urn()), "i want chinese food")
+                self.assertEqual(1, flow.runs.all().count())
+
+        payload = dict(disconnect='true')
+        self.client.post(reverse('orgs.org_nlu_api'), payload, follow=True)
+        self.org.refresh_from_db()
+        self.assertEqual(Trigger.get_triggers_of_type(self.org, Trigger.TYPE_NLU_API).first(), None)
 
     def test_update(self):
         self.login(self.admin)

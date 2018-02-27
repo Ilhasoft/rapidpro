@@ -224,6 +224,10 @@
                 %input{ng-change:"updateCategory(rule)",ng-model:"rule.test._base",name:"days",number:"",ng-required:"rule.category._base",type:"text",class:"operand-small"}
                 -trans "days"
               .operation{ng-if:"rule._config.operands == 0"}
+
+              .operation{ng-if:'rule._config.type == "has_intent" || len(listBotsIntents) > 0'}
+                %select{ng-options:"botIntent as botIntent.name group by botIntent.bot_name for botIntent in listBotsIntents", required:"", ng-model:"rule.test._base.intent", ng-init:"initHasIntent(rule)", ng-change:"updateCategory(rule)", class:"intents-nlu"}
+
               .categorize
                 -trans "categorize as"
                 %input{ng-model:"rule.category._base",name:"category",ng-required:"rule._config.operands==0 || (rule._config.operands==1 && rule.test._base) || (rule._config.operands==2 && (rule.test.test.min || rule.test.test.max))",ng-change:"rule.category._autoName = false",type:"text",class:"category",maxlength:"36"}
@@ -237,6 +241,15 @@
                 -trans "Please enter a value for evaluating this rule."
               .error.ng-hide{ng-show:'inner.category.$error.required'}
                 -trans "Please enter a category name."
+              %div{ng-if:'rule._config.type == "has_intent" || len(listBotsIntents) > 0'}
+                %span{ng-if:'nluType == "WIT"', class:"complement-text-wit"}
+                  containing values
+                %span{ng-if:'nluType == "WIT"', class:"intents-wit"}
+                  %select{ng-options:"intent for intent in rule.listBotsIntentsFromEntity track by intent", ng-model:"rule.test._base.intent_from_entity", ng-disabled:"rule.intentsFromEntityDisabled", class:"intents-from-entity"}
+                %span{class:"accuracy-nlu"}
+                  %span
+                    -trans "with accuracy"
+                  %select{ng-init:"rule.test._base.accuracy = rule.test._base.accuracy || accuracyBaseList[5]",  ng-model:"rule.test._base.accuracy", ng-options:'accuracy as (accuracy+"%") for accuracy in accuracyBaseList track by accuracy', required:"", class:"select-accuracy"}
 
 .modal-footer
   .ussd-counter{ng-class:"{limit: characters < 0}", ng-if:'formData.rulesetConfig.type == "wait_menu" || formData.rulesetConfig.type == "wait_ussd"'}

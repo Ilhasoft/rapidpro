@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import regex
 import six
+import json
 
 from django.conf import settings
 from django.db import models
@@ -14,6 +15,7 @@ from temba.contacts.models import Contact, ContactGroup
 from temba.flows.models import Flow, FlowRun, FlowStart
 from temba.ivr.models import IVRCall
 from temba.msgs.models import Msg
+from temba.nlu.models import NluApiConsumer, NLU_WIT_AI_TAG
 from temba.orgs.models import Org
 from temba_expressions.utils import tokenize
 
@@ -33,6 +35,7 @@ class Trigger(SmartModel):
     TYPE_SCHEDULE = 'S'
     TYPE_USSD_PULL = 'U'
     TYPE_INBOUND_CALL = 'V'
+    TYPE_NLU_API = 'L'
 
     TRIGGER_TYPES = ((TYPE_KEYWORD, _("Keyword Trigger")),
                      (TYPE_SCHEDULE, _("Schedule Trigger")),
@@ -42,7 +45,8 @@ class Trigger(SmartModel):
                      (TYPE_FOLLOW, _("Follow Account Trigger")),
                      (TYPE_NEW_CONVERSATION, _("New Conversation Trigger")),
                      (TYPE_USSD_PULL, _("USSD Pull Session Trigger")),
-                     (TYPE_REFERRAL, _("Referral Trigger")))
+                     (TYPE_REFERRAL, _("Referral Trigger")),
+                     (TYPE_NLU_API, _("NLU API Trigger")))
 
     KEYWORD_MAX_LEN = 16
 
@@ -90,6 +94,9 @@ class Trigger(SmartModel):
 
     channel = models.ForeignKey(Channel, verbose_name=_("Channel"), null=True, related_name='triggers',
                                 help_text=_("The associated channel"))
+
+    nlu_data = models.TextField(null=True, verbose_name=_("NLU Data"),
+                                help_text=_('Intents, accuracy, bots, somethings that will be used to nlu'))
 
     @classmethod
     def create(cls, org, user, trigger_type, flow, channel=None, **kwargs):
@@ -152,7 +159,7 @@ class Trigger(SmartModel):
         """
         now = timezone.now()
 
-        if not self.trigger_type == Trigger.TYPE_SCHEDULE:
+        if not self.trigger_type == Trigger.TYPE_SCHEDULE and not self.trigger_type == Trigger.TYPE_NLU_API:
             matches = Trigger.objects.filter(org=self.org, is_active=True, is_archived=False, trigger_type=self.trigger_type)
 
             # if this trigger has a keyword, only archive others with the same keyword
@@ -439,3 +446,79 @@ class Trigger(SmartModel):
             start.async_start()
 
         self.save()
+
+    @classmethod
+    def catch_nlu_triggers(cls, entity, trigger_type):
+        triggers = Trigger.get_triggers_of_type(entity.org, trigger_type)
+
+        for trigger in triggers:
+            nlu_data = trigger.get_nlu_data()
+
+            consumer = NluApiConsumer.factory(entity.org)
+            if consumer and nlu_data and nlu_data.get('bots', None):
+                for bot in nlu_data['bots']:
+                    if consumer.type == NLU_WIT_AI_TAG:
+                        try:
+                            entities = consumer.predict(entity, bot)
+                        except Exception:  # pragma: needs cover
+                            return False
+                        if not isinstance(entities, dict):
+                            return False
+
+                        for item in entities.keys():
+                            for intent in entities.get(item):
+                                if intent.get('value') in nlu_data['intents_from_entity'] and intent.get('confidence') * 100 >= nlu_data.get('accuracy'):
+                                    extra = dict(intent=intent.get('value'), entities=consumer.get_entities(entities))
+                                    trigger.flow.start([], [entity.contact], start_msg=entity, restart_participants=True, extra=extra)
+                                    return True
+                    else:
+                        try:
+                            intent, accuracy, entities = consumer.predict(entity, bot)
+                        except Exception:  # pragma: needs cover
+                            return False
+
+                        accuracy *= 100
+
+                        if intent in nlu_data[bot] and accuracy >= nlu_data.get('accuracy'):
+                            extra = dict(intent=intent, entities=entities)
+                            trigger.flow.start([], [entity.contact], start_msg=entity, restart_participants=True,
+                                               extra=extra)
+                            return True
+
+        return False
+
+    def get_nlu_data(self):
+        nlu_data = json.loads(self.nlu_data) if self.nlu_data else {}
+        intents = nlu_data.get('intent_bot', [])
+
+        for counter, intent in enumerate(intents):
+
+            if 'intents_replaced' not in nlu_data:
+                nlu_data['intents_replaced'] = ''
+
+            if 'intents_splited' not in nlu_data:
+                nlu_data['intents_splited'] = []
+
+            if 'bots' not in nlu_data:
+                nlu_data['bots'] = []
+
+            nlu_data['bots'].append(intent.get('token'))
+
+            sufix = ', ' if counter + 1 < len(intents) else ''
+
+            nlu_data['intents_replaced'] += "%s - %s%s" % (intent.get('intent'), intent.get('name'), sufix)
+            nlu_data['intents_splited'].append(intent.get('intent'))
+
+        if 'bots' in nlu_data:
+            nlu_data['bots'] = set(nlu_data['bots'])
+            for bot in nlu_data['bots']:
+                nlu_data[bot] = [intent.get('intent') for intent in nlu_data.get('intent_bot') if bot == intent.get('token')]
+
+        return nlu_data
+
+    @classmethod
+    def remove_all_triggers_nlu(cls, user):
+        triggers = Trigger.get_triggers_of_type(user.get_org(), Trigger.TYPE_NLU_API)
+        for trigger in triggers:
+            trigger.archive(user)
+        return True

@@ -792,3 +792,6 @@
 .icon-button-quick-reply:before {
   content: "\e903";
 }
+.icon-robot-nlu:before {
+  content: "\e907";
+}
