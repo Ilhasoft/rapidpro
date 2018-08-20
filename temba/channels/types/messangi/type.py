@@ -15,6 +15,8 @@ class MessangiType(ChannelType):
     An Messangi channel (http://messangi.com/)
     """
 
+    courier_url = r"^mg/(?P<uuid>[a-z0-9\-]+)/(?P<action>receive)$"
+
     code = 'MG'
     category = ChannelType.Category.PHONE
 
