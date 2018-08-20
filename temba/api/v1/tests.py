@@ -274,7 +274,7 @@ class APITest(TembaTest):
         response = self.fetchJSON(url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()['results']), 10)
+        self.assertEqual(len(response.json()['results']), 7)
         self.assertEqual(response.json()['results'][2], {
             'boundary': "1708283",
             'name': "Kigali City",
@@ -300,7 +300,7 @@ class APITest(TembaTest):
         response = self.fetchJSON(url, 'aliases=true')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()['results']), 10)
+        self.assertEqual(len(response.json()['results']), 7)
         self.assertEqual(response.json()['results'][2], {
             'boundary': "1708283",
             'name': "Kigali City",
