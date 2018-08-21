@@ -5013,7 +5013,8 @@ class FlowsTest(FlowFileTest):
 
         def assert_payload(payload, path_length, result_count, results):
             self.assertEqual(dict(name='Ben Haggerty', uuid=self.contact.uuid, urn='tel:+12065552020'), payload['contact'])
-            self.assertEqual(dict(uuid=flow.uuid), payload['flow'])
+            if not in_flowserver:
+                self.assertEqual(dict(name='Webhook Payload Test', uuid=flow.uuid, revision=1), payload['flow'])
             self.assertDictContainsSubset(dict(name='Test Channel', uuid=self.channel.uuid), payload['channel'])
             self.assertEqual(path_length, len(payload['path']))
             self.assertEqual(result_count, len(payload['results']))
