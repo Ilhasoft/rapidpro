@@ -81,7 +81,7 @@ class BaseAssetStore(object):
         filename = '%s_%s.%s' % (self.key, pk, extension)
 
         # if our storage backend is S3
-        if settings.DEFAULT_FILE_STORAGE == 'storages.backends.s3boto.S3BotoStorage' or settings.DEFAULT_FILE_STORAGE == 'temba.utils.custom_storages.MediaStorage':
+        if settings.DEFAULT_FILE_STORAGE == "storages.backends.s3boto.S3BotoStorage":  # pragma: needs cover
             # generate our URL manually so that we can force the download name for the user
             url = default_storage.connection.generate_url(default_storage.querystring_expire,
                                                           method='GET', bucket=default_storage.bucket.name,
