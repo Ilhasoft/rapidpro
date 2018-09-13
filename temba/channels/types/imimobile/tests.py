@@ -12,7 +12,7 @@ class IMIMobileTypeTest(TembaTest):
         self.login(self.admin)
         url = reverse("channels.types.imimobile.claim")
 
-        # shouldn't be able to see the claim novo page if we aren't part of that group
+        # shouldn't be able to see the claim IMI Mobile page if we aren't part of that group
         response = self.client.get(reverse("channels.channel_claim"))
         self.assertNotContains(response, url)
 
@@ -47,4 +47,4 @@ class IMIMobileTypeTest(TembaTest):
         response = self.client.get(config_url)
         self.assertEqual(200, response.status_code)
 
-        self.assertContains(response, reverse("courier.imI", args=[channel.uuid, "receive"]))
+        self.assertContains(response, reverse("courier.imi", args=[channel.uuid, "receive"]))
