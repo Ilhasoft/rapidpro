@@ -17,9 +17,7 @@ class IMIMobileType(ChannelType):
 
     name = "IMI Mobile"
 
-    claim_blurb = _(
-        """Configure your <a href="https://imimobile.com/">IMI Mobile</a> in a few simple steps."""
-    )
+    claim_blurb = _("""Configure your <a href="https://imimobile.com/">IMI Mobile</a> in a few simple steps.""")
     claim_view = ClaimView
 
     schemes = [TEL_SCHEME]
@@ -32,7 +30,9 @@ class IMIMobileType(ChannelType):
         dict(
             label=_("Receive URL"),
             url="https://{{ channel.callback_domain }}{% url 'courier.imi' channel.uuid 'receive' %}",
-            description=_("To receive incoming messages, you need to set the receive URL for your IMI Mobile account."),
+            description=_(
+                "To receive incoming messages, you need to set the receive URL for your IMI Mobile account."
+            ),
         ),
     )
 
