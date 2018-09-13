@@ -25,9 +25,7 @@ class IMIMobileType(ChannelType):
     schemes = [TEL_SCHEME]
     max_length = 1120
 
-    show_config_page = True
     attachment_support = False
-
     recommended_timezones = ["Asia/Kolkata"]
 
     configuration_urls = (
