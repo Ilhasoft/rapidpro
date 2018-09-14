@@ -1,5 +1,5 @@
 from django.utils.translation import ugettext_lazy as _
-from temba.channels.types.imimobile.forms import ClaimView
+from temba.channels.types.imimobile.views import ClaimView
 
 from temba.channels.models import ChannelType
 from temba.contacts.models import TEL_SCHEME
