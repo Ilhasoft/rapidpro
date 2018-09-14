@@ -8,7 +8,7 @@ from ...views import ClaimViewMixin
 
 class ClaimView(ClaimViewMixin, SmartFormView):
     class IMIClaimForm(ClaimViewMixin.Form):
-        secret_key = forms.CharField(max_length=36, min_length=36, help_text=_("The IMI Mobile secret key"))
+        api_key = forms.CharField(max_length=36, min_length=36, help_text=_("The IMI Mobile secret key"))
         username = forms.CharField(max_length=32, help_text=_("The account username provided by IMI Mobile"))
         password = forms.CharField(max_length=64, help_text=_("The account password provided by IMI Mobile"))
         campaign_id = forms.CharField(max_length=64, help_text=_("The campaign ID provided by IMI Mobile"))
@@ -29,7 +29,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         config = {
             Channel.CONFIG_USERNAME: data["username"],
             Channel.CONFIG_PASSWORD: data["password"],
-            Channel.CONFIG_SECRET: data["secret_key"],
+            Channel.CONFIG_API_KEY: data["api_key"],
             IMIMobileType.CONFIG_CAMPAIGN_ID: data["campaign_id"],
             IMIMobileType.CONFIG_SENDER_NAME: data["sender_name"],
         }
