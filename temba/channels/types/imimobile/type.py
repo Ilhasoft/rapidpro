@@ -10,6 +10,9 @@ class IMIMobileType(ChannelType):
      An IMI mobile channel (https://imimobile.com/)
      """
 
+    CONFIG_CAMPAIGN_ID = "campaign_id"
+    CONFIG_SENDER_NAME = "sender_name"
+
     courier_url = r"^imi/(?P<uuid>[a-z0-9\-]+)/(?P<action>receive)$"
 
     code = "IMI"

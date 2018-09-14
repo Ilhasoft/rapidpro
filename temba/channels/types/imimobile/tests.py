@@ -31,14 +31,20 @@ class IMIMobileTypeTest(TembaTest):
         post_data["username"] = "myUsername"
         post_data["password"] = "myPassword"
         post_data["secret_key"] = "c2af26c7-8b3d-47f8-a6e2-0524d0f835e2"
+        post_data["campaign_id"] = "camp_001"
+        post_data["sender_name"] = "MY_SENDER_NAME"
 
         response = self.client.post(url, post_data)
 
         channel = Channel.objects.get()
 
+        from .type import IMIMobileType
+
         self.assertEqual("IN", channel.country)
         self.assertEqual("myUsername", channel.config[Channel.CONFIG_USERNAME])
         self.assertEqual("myPassword", channel.config[Channel.CONFIG_PASSWORD])
+        self.assertEqual("camp_001", channel.config[IMIMobileType.CONFIG_CAMPAIGN_ID])
+        self.assertEqual("MY_SENDER_NAME", channel.config[IMIMobileType.CONFIG_SENDER_NAME])
         self.assertEqual("IMI", channel.channel_type)
 
         config_url = reverse("channels.channel_configuration", args=[channel.uuid])
