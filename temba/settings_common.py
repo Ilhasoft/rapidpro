@@ -1005,6 +1005,7 @@ CHANNEL_TYPES = [
     "temba.channels.types.globe.GlobeType",
     "temba.channels.types.highconnection.HighConnectionType",
     "temba.channels.types.hub9.Hub9Type",
+    "temba.channels.types.imimobile.IMIMobileType",
     "temba.channels.types.infobip.InfobipType",
     "temba.channels.types.jasmin.JasminType",
     "temba.channels.types.jiochat.JioChatType",

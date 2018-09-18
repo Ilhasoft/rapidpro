@@ -1,0 +1,22 @@
+-load i18n
+
+%h4
+  -blocktrans
+    To finish configuring your IMI Mobile connection you'll need to set the following callback URLs on your
+    account.
+
+%hr
+
+%p
+  -trans "Received URL"
+  %code
+    https://{{ channel.callback_domain }}{% url 'courier.imi' channel.uuid 'receive' %}
+
+  %p
+    -blocktrans
+      When a new message is received by your service, it should notify us with a POST to the following URL, passing
+      the following parameters: 'MobileNumber' and 'Message'.
+  %pre.prettyprint.example<
+    :plain
+      POST https://{{ channel.callback_domain }}{% url 'courier.imi' channel.uuid 'receive' %}
+      msisdn=254791541111&sms=Love+is+patient.+Love+is+kind.&tid=20170503&src=765939061
