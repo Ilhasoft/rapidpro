@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: TextIt\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-09-15 21:00+0000\n"
+"POT-Creation-Date: 2020-09-22 17:25+0000\n"
 "PO-Revision-Date: 2014-04-14 20:37+0000\n"
 "Last-Translator: produtos <produtos.ti@takenet.com.br>\n"
 "Language-Team: Portuguese (Brazil) (http://www.transifex.com/projects/p/textit/language/pt_BR/)\n"
@@ -1270,6 +1270,29 @@ msgid ""
 msgstr ""
 "\n"
 "Esse terminal deve ser chamado pelo Hub9 quando uma mensagem foi para o destinatário final. (relatórios de entrega) Você pode definir a URL de entrega de retorno de chamada na sua conta Infobip entrando em contato com o seu agente de vendas."
+
+msgid "Activate your own enterprise WhatsApp account in Dialog 360 to communicate with your contacts. <a href=\"https://www.360dialog.com/\">Learn more about 360Dialog WhatsApp</a>"
+msgstr ""
+
+#, python-format
+msgid "Unable to register callbacks: %s"
+msgstr ""
+
+msgid "Your enterprise WhatsApp number"
+msgstr ""
+
+#, fuzzy
+#| msgid "The file name for our export"
+msgid "The base URL for your 360 Dialog WhatsApp enterprise installation"
+msgstr "O nome do arquivo para nossa exportação"
+
+msgid "The 360 Dialog API key generated after account registration"
+msgstr ""
+
+#, fuzzy
+#| msgid "Please enter at least 8 characters"
+msgid "Please enter a valid phone number"
+msgstr "Por favor, insira pelo menos 8 caracteres"
 
 #, fuzzy
 msgid ""
@@ -2898,10 +2921,6 @@ msgstr "Mensagem"
 msgid "If you have an enterprise WhatsApp account, you can connect it to communicate with your contacts"
 msgstr ""
 
-#, python-format
-msgid "Unable to register callbacks: %s"
-msgstr ""
-
 #, fuzzy, python-format
 #| msgid "Invalid group or contact id"
 msgid "Unable to configure channel: %s"
@@ -2914,9 +2933,6 @@ msgstr ""
 #| msgid "Synced on"
 msgid "Sync Logs"
 msgstr "Sincronizado em"
-
-msgid "Your enterprise WhatsApp number"
-msgstr ""
 
 msgid "The base URL for your WhatsApp enterprise installation"
 msgstr ""
@@ -2947,11 +2963,6 @@ msgstr "O número de comandos enviados ao transmissor"
 #| msgid "The file name for our export"
 msgid "The namespace for your WhatsApp templates"
 msgstr "O nome do arquivo para nossa exportação"
-
-#, fuzzy
-#| msgid "Please enter at least 8 characters"
-msgid "Please enter a valid phone number"
-msgstr "Por favor, insira pelo menos 8 caracteres"
 
 msgid "Unable to check WhatsApp enterprise account, please check username and password"
 msgstr ""
@@ -6003,6 +6014,9 @@ msgstr "Criar disparador"
 msgid "Create Schedule"
 msgstr "Criar agendamento"
 
+msgid "Submit"
+msgstr ""
+
 #, fuzzy
 msgid "Backup Token"
 msgstr "Contas"
@@ -7063,6 +7077,12 @@ msgid "After connecting your service we will provide URLs for the endpoints for 
 msgstr ""
 "\n"
 "Após a conexão com o seu serviço, iremos fornecer URLs para os terminais para o InfoBip chamar quando queiser enviar uma mensagem para Textit."
+
+msgid ""
+"\n"
+"    Your 360Dialog WhatsApp channel is now connected, you should be able to send and receive messages as normal.\n"
+"  "
+msgstr ""
 
 #, fuzzy, python-format
 #| msgid ""
@@ -12097,6 +12117,10 @@ msgid "Start a flow in the future or on a schedule."
 msgstr "Iniciar um fluxo futuramente ou segundo agendamento."
 
 #, fuzzy
+msgid "Backup Tokens"
+msgstr "Contas"
+
+#, fuzzy
 #| msgid "Enter Claim Code"
 msgid "Enter a query"
 msgstr "Insira o seu código de requisição"
@@ -12249,7 +12273,7 @@ msgstr ""
 #~ msgid "Each row should have the phone number as <i>URN:tel</i> (including country code) and the name of the contact if available."
 #~ msgstr "Cada linha deve ter o número de telefone (incluindo o código do país) e o nome do contato, se disponível."
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "                          Created %(create_count)s new contact\n"
@@ -12476,7 +12500,7 @@ msgstr ""
 #~ msgid "Unlabel"
 #~ msgstr "Remover rótulo"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "                              %(run_count)s run\n"
@@ -12492,7 +12516,7 @@ msgstr ""
 #~ "\n"
 #~ "%(participant_count)s participante %(participant_count_plr)s, %(completed_count)s completos"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "                            %(completed_percentage)s%% completion\n"
@@ -12501,7 +12525,7 @@ msgstr ""
 #~ "\n"
 #~ "%(new_contacts)s Nova Resposta %(new_contact_plr)s"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "                        %(count_comma)s recipient\n"
@@ -12517,7 +12541,7 @@ msgstr ""
 #~ "\n"
 #~ "Distribuir para %(count_comma)s contatos"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "                        %(group_count)s groups, %(contact_count)s contacts, %(urn_count)s urns\n"
@@ -12529,7 +12553,7 @@ msgstr ""
 #~ msgid "Write the message that will get sent when the scheduled time arrives"
 #~ msgstr "Escrever a mensagem que será enviada quando chegar o momento agendado"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "        The message will be sent to\n"
@@ -12559,7 +12583,7 @@ msgstr ""
 #~ "contatos %(pluralizer)s\n"
 #~ "</span>"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "        The message will be sent to\n"
@@ -12687,7 +12711,6 @@ msgstr ""
 #~ msgid "month"
 #~ msgstr "mês"
 
-#, python-format
 #~ msgid ""
 #~ "\n"
 #~ "          on the %(repeat_day_of_month)s\n"
@@ -12697,7 +12720,6 @@ msgstr ""
 #~ "\n"
 #~ "no %(repeat_day_of_month)s"
 
-#, python-format
 #~ msgid ""
 #~ "\n"
 #~ "          It will repeat <span class='attn'>%(repeat_period_display)s</span> at around the same time.\n"
@@ -12791,12 +12813,12 @@ msgstr ""
 #~ msgid "Empty user access token!"
 #~ msgstr "Seu Token API é"
 
-#, fuzzy, python-brace-format
+#, fuzzy
 #~| msgid "Invalid group or contact id"
 #~ msgid "Unable to parse the date '{self.value}'"
 #~ msgstr "Grupo ou id do contato inválido"
 
-#, fuzzy, python-brace-format
+#, fuzzy
 #~| msgid "Unknown alert type: %(alert)s"
 #~ msgid "Unknown location type: '{field.value_type}'"
 #~ msgstr "Tipo de alerta desconhecido: %(alert)s"
@@ -12929,7 +12951,7 @@ msgstr ""
 #~ msgid "Channel Alarms (low battery, loss of connectivity)"
 #~ msgstr "Alarmes do Transmissor (bateria fraca, perda de conexão)"
 
-#, fuzzy, python-format
+#, fuzzy
 #~ msgid ""
 #~ "\n"
 #~ "    Your API Token is <span class=\"attn\">%(token)s</span>.\n"
@@ -13015,7 +13037,7 @@ msgstr ""
 #~ "\n"
 #~ "%(sms_sent)s Enviadas"
 
-#, fuzzy, python-format
+#, fuzzy
 #~| msgid ""
 #~| "\n"
 #~| "        You can connect your <a href=\"http://infobip.com\">Infobip</a> number by entering your number, username and password\n"
