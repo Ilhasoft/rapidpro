@@ -5,8 +5,7 @@
   span8
 
 - block form-buttons
-    %div.form-action.mt-4
-      %input.button-primary{:type => "submit", :value => "{{ submit_button_name }}"}
+    {{ block.super }}
     %br
     %a.button-primary{href: '{% url "two_factor.backup_tokens" %}'}
         -trans "Backup Tokens"
