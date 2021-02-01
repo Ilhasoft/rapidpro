@@ -39,7 +39,8 @@ RUN rm /etc/nginx/sites-enabled/default
 
 COPY ./docker/pip-freeze.txt /tmp/dep/
 COPY ./pip-freeze.txt ./docker/nginx.site.conf /tmp/
-RUN pip install --no-cache-dir -r /tmp/dep/pip-freeze.txt
+RUN pip install --no-cache-dir -r /tmp/dep/pip-freeze.txt && \
+    pip install -e git+git://github.com/Ilhasoft/rapidpro-apps.git#egg=rapidpro_apps
 
 RUN cp /tmp/nginx.site.conf /etc/nginx/sites-available/$PROJECT.conf \
  && ln -s /etc/nginx/sites-available/$PROJECT.conf /etc/nginx/sites-enabled/$PROJECT.conf
