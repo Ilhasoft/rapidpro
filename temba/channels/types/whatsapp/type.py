@@ -12,6 +12,7 @@ from temba.contacts.models import URN
 from temba.request_logs.models import HTTPLog
 from temba.templates.models import TemplateTranslation
 from temba.utils.whatsapp.views import RefreshView, SyncLogsView, TemplatesView
+from temba.utils.whatsapp import update_api_version
 
 from ...models import ChannelType
 
@@ -84,6 +85,8 @@ class WhatsAppType(ChannelType):
         if resp.status_code != 200:
             raise ValidationError(_("Unable to configure channel: %s", resp.content))
 
+        update_api_version(channel)
+
     def get_api_templates(self, channel):
         if (
             CONFIG_FB_BUSINESS_ID not in channel.config or CONFIG_FB_ACCESS_TOKEN not in channel.config
@@ -116,3 +119,13 @@ class WhatsAppType(ChannelType):
         except requests.RequestException as e:
             HTTPLog.create_from_exception(HTTPLog.WHATSAPP_TEMPLATES_SYNCED, url, e, start, channel=channel)
             return [], False
+
+    def get_api_status(self, channel):
+        headers = {"Authorization": "Bearer %s" % channel.config[Channel.CONFIG_AUTH_TOKEN]}
+
+        response = requests.get(channel.config[Channel.CONFIG_BASE_URL] + "/v1/health", headers=headers)
+
+        if response.status_code != 200:
+            raise Exception("Could not check api status")
+
+        return response.json()
