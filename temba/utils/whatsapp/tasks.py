@@ -156,8 +156,6 @@ def update_local_templates(channel, templates_data):
     TemplateTranslation.trim(channel, seen)
 
 
-
-
 @task(track_started=True, name="refresh_whatsapp_templates")
 def refresh_whatsapp_templates():
     """
