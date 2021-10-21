@@ -1,4 +1,4 @@
-v-weni-1.0.0-v-rp6.5.15
+1.0.0-rapidpro-6.5.15
 ----------
  * RapidPro v6.5.15
  * django-environ 0.4.5
