@@ -70,6 +70,7 @@ BRANDING = {
         "tiers": dict(import_flows=0, multi_user=0, multi_org=0),
         "bundles": [],
         "welcome_packs": [dict(size=5000, name="Demo Account"), dict(size=1000000, name="Normal Account")],
+        "title": _(brand_info.get("title")),
         "description": _(brand_info.get("description")),
         "credits": _(brand_info.get("credits")),
     }
