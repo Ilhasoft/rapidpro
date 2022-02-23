@@ -37,6 +37,11 @@
       currentHistory = JSON.parse(currentHistory);
     }
 
+    // do nothing because this is the first session
+    if (currentHistory.length <= 1) {
+      return;
+    }
+
     // removes current url
     currentHistory.pop();
     // removes previous url since it will be added again when loaded
