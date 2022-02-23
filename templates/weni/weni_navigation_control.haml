@@ -7,5 +7,5 @@
 
 :javascript
   $(".weni-navigation-control__back").live('click', (event) => {
-    history.back();
+    parent.document.getElementByTagName("iframe").contentWindow.history.back();
   })
