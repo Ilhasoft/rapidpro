@@ -6,8 +6,45 @@
     -trans "Back"
 
 :javascript
+
+  $( document ).ready(function() {
+    let currentHistory = sessionStorage.getItem('flows-history');
+    
+    // if no history is available, create an empty one
+    if (!currentHistory) {
+      currentHistory = [];
+    } else {
+      currentHistory = JSON.parse(currentHistory);
+    }
+
+    // get the current window url
+    const currentUrl = window.location.href;
+
+    // add the url to the history
+    currentHistory.push(currentUrl);
+
+    // update the history in the session storage
+    sessionStorage.setItem('flows-history', JSON.stringify(currentHistory));
+  });
+
   $(".weni-navigation-control__back").live('click', (event) => {
-    window.parent.postMessage({ 
-      event: 'goBack'
-    }, '*');
+    let currentHistory = sessionStorage.getItem('flows-history');
+
+    // if no history is available, just return
+    if (!currentHistory) {
+      return;
+    } else {
+      currentHistory = JSON.parse(currentHistory);
+    }
+
+    // removes current url
+    currentHistory.pop();
+    // removes previous url since it will be added again when loaded
+    const destinationUrl = currentHistory.pop();
+
+    // sets the storage value to the new history
+    sessionStorage.setItem('flows-history', JSON.stringify(currentHistory));
+
+    // changes the url to the destination url
+    window.location.href = destinationUrl;
   })
