@@ -7,5 +7,7 @@
 
 :javascript
   $(".weni-navigation-control__back").live('click', (event) => {
-    parent.document.getElementByTagName("iframe").contentWindow.history.back();
+    window.parent.postMessage({ 
+      event: 'goBack'
+    }, '*');
   })
