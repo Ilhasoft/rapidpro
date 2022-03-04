@@ -1,3 +1,7 @@
+1.1.6-rapidpro-7.0.4
+----------
+ * Add subscribed_apps permission for Instagram Channel
+
 1.1.5-rapidpro-7.0.4
 ----------
  * Update weni-rp-apps to 1.0.13
