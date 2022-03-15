@@ -397,3 +397,6 @@ INFINITY_PLAN = "infinity"
 # User reset password limit
 USER_RECOVER_TIME_INTERVAL = env.int("USER_RECOVER_TIME_INTERVAL", default=12)
 USER_RECOVER_MAX_ATTEMPTS = env.int("USER_RECOVER_MAX_ATTEMPTS", default=5)
+
+# Channel that should not be displayed in the old design
+OLD_DESIGN_EXCLUDED_CHANNELS_CODES =  env.list("OLD_DESIGN_EXCLUDED_CHANNELS_CODES", default=[]) 

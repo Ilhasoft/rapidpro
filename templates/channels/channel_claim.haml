@@ -49,14 +49,15 @@
         -trans "Social Network Channels"
 
       -for ch_type in channel_types.SOCIAL_MEDIA
-        .card.link(href="{% url 'channels.types.'|add:ch_type.slug|add:'.claim' %}" onclick="goto(event, this)")
-          .relative
-            .text-base.absolute.text-gray-100.bg-icon{class:"{{ ch_type.icon }}"}
-          .flex.flex-col.mx-20.relative
-            .title
-              {{ch_type.name}}
-            .mt-2
-              {% include ch_type.get_claim_blurb %}
+        -if not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes
+          .card.link(href="{% url 'channels.types.'|add:ch_type.slug|add:'.claim' %}" onclick="goto(event, this)")
+            .relative
+              .text-base.absolute.text-gray-100.bg-icon{class:"{{ ch_type.icon }}"}
+            .flex.flex-col.mx-20.relative
+              .title
+                {{ch_type.name}}
+              .mt-2
+                {% include ch_type.get_claim_blurb %}
 
       .title.mb-4.mt-8
         -trans "SMS and Voice Channels"
