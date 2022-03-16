@@ -19,7 +19,7 @@
 
     -if recommended_channels
       -for ch_type in recommended_channels
-        -if not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes
+        -if use_weni_layout or (not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes)
           .card.link(href="{% url 'channels.types.'|add:ch_type.slug|add:'.claim' %}" onclick="goto(event, this)")
             .relative
               .text-base.absolute.text-gray-100.bg-icon(class="{{ ch_type.icon }}")
@@ -50,7 +50,7 @@
         -trans "Social Network Channels"
 
       -for ch_type in channel_types.SOCIAL_MEDIA
-        -if not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes
+        -if use_weni_layout or (not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes)
           .card.link(href="{% url 'channels.types.'|add:ch_type.slug|add:'.claim' %}" onclick="goto(event, this)")
             .relative
               .text-base.absolute.text-gray-100.bg-icon{class:"{{ ch_type.icon }}"}
@@ -78,7 +78,7 @@
                 to get started.
 
       -for ch_type in channel_types.PHONE
-        -if not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes
+        -if use_weni_layout or (not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes)
           .card.link(href="{% url 'channels.types.'|add:ch_type.slug|add:'.claim' %}" onclick="goto(event, this)")
             .relative
               .text-base.absolute.text-gray-100.bg-icon{class:"{{ ch_type.icon }}"}
@@ -93,7 +93,7 @@
         -trans "API Channels"
 
       -for ch_type in channel_types.API
-        -if not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes
+        -if use_weni_layout or (not use_weni_layout and ch_type.code not in old_design_excluded_channels_codes)
           .card.link(href="{% url 'channels.types.'|add:ch_type.slug|add:'.claim' %}" onclick="goto(event, this)")
             .relative
               .text-base.absolute.text-gray-100.bg-icon{class:"{{ ch_type.icon }}"}
