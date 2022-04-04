@@ -291,6 +291,7 @@ CELERY_BEAT_SCHEDULE["retry-errored-messages"] = {
     "schedule": crontab(hour=1, minute=0),
 }
 CELERY_BEAT_SCHEDULE["refresh-whatsapp-tokens"] = {"task": "refresh_whatsapp_tokens", "schedule": timedelta(hours=12)}
+CELERY_BEAT_SCHEDULE["refresh-whatsapp-templates"] = {"task": "refresh_whatsapp_templates", "schedule": timedelta(hours=1)}
 
 
 # -----------------------------------------------------------------------------------
