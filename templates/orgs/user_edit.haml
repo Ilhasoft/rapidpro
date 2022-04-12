@@ -4,32 +4,34 @@
 
 -block fields
 
-  .mb-4
-    .field.formax-vertical
-      {% render_field 'first_name' %}
+  -if not use_weni_layout
+    .mb-4
+      .field.formax-vertical
+        {% render_field 'first_name' %}
 
-    .field.formax-vertical
-      {% render_field 'last_name' %}
+      .field.formax-vertical
+        {% render_field 'last_name' %}
 
-    .field.formax-vertical
-      {% render_field 'language' %}
+      .field.formax-vertical
+        {% render_field 'language' %}
 
-    .field.formax-vertical
-      {% render_field 'email' %}
+      .field.formax-vertical
+        {% render_field 'email' %}
 
-    .field.formax-vertical
-      {% render_field 'new_password' %}
+      .field.formax-vertical
+        {% render_field 'new_password' %}
 
-    #current-password.field.formax-vertical.p-4.bg-gray-100.rounded-lg.mt-4.hidden
-      .mb-2
-        -blocktrans trimmed
-          Confirm your current password to save these changes
-      {% render_field 'current_password' %}
+      #current-password.field.formax-vertical.p-4.bg-gray-100.rounded-lg.mt-4.hidden
+        .mb-2
+          -blocktrans trimmed
+            Confirm your current password to save these changes
+        {% render_field 'current_password' %}
 
   
 -block summary
-  -blocktrans with email=user.username
-    Your email address is <b>{{email}}</b>.
+  -if not use_weni_layout
+    -blocktrans with email=user.username
+      Your email address is <b>{{email}}</b>.
 
 -block extra-script
   :javascript

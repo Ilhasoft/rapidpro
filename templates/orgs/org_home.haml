@@ -72,6 +72,10 @@
     {% lessblock %}
       :plain
 
+        #unnnic-content {
+          margin-left: inherit;
+        }
+
         #id-channel {
           a {
             text-decoration:none;
@@ -164,3 +168,9 @@
     .formax-vertical ul.errorlist {
       margin-left: 0px !important;
     }
+
+    {% if use_weni_layout %}
+      #id-user, #id-accounts, #id-topups, #id-two_factor {
+        display: none;
+      }
+    {% endif %}

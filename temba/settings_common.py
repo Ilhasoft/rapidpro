@@ -1116,6 +1116,7 @@ TICKETER_TYPES = [
     "temba.tickets.types.mailgun.MailgunType",
     "temba.tickets.types.zendesk.ZendeskType",
     "temba.tickets.types.rocketchat.RocketChatType",
+    "temba.tickets.types.twilioflex.TwilioFlexType",
 ]
 
 CHANNEL_TYPES = [
@@ -1184,6 +1185,8 @@ CHANNEL_TYPES = [
     "temba.channels.types.android.AndroidType",
     "temba.channels.types.discord.DiscordType",
     "temba.channels.types.rocketchat.RocketChatType",
+    "temba.channels.types.weniwebchat.WeniWebChatType",
+    "temba.channels.types.instagram.InstagramType",
 ]
 
 # set of ISO-639-3 codes of languages to allow in addition to all ISO-639-1 languages

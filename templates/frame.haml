@@ -17,6 +17,14 @@
 
     :javascript
 
+      // Weni's addition to send a message to Connect about our current route
+      {% if use_weni_layout %}
+        window.parent.postMessage({
+          event: 'changePathname',
+          pathname: window.location.pathname,
+        }, "*")
+      {% endif %}
+
       window.supportEmail = '{{brand.support_email}}';
 
       function conditionalLoad(local, remote) {
@@ -37,6 +45,12 @@
 
     -# this view make it possible to process translations from javascript land
     <script src="{% url 'django.views.i18n.javascript_catalog' %}"></script>
+
+    -if logrocket_id and parent_iframe_domain
+      <!-- LogRocket Tracking -->
+      <script src="https://cdn.lr-in.com/LogRocket.min.js" crossorigin="anonymous"></script>
+      <script>window.LogRocket && window.LogRocket.init("{{logrocket_id}}", {mergeIframes: true, parentDomain: "{{parent_iframe_domain}}"});</script>
+
     -compress js
       :javascript
         var static_url = '{{STATIC_URL}}';
@@ -123,16 +137,83 @@
       -block extra-less
       -block extra-style
 
+      :css
+        {% if show_sidemenu and use_weni_layout %}
+          #unnnic-content {
+            margin-left: 200px;
+          }
+        {% endif %}
+
     -for incl in brand.head_includes
       -include incl
 
     <!--[if lt IE 9]>
       %script{src:"//html5shim.googlecode.com/svn/trunk/html5.js"}
     <![endif]-->
+-load macros
+-macro messages
+  -block messages
+    -if messages
+      -for msg in messages
+        %div{class:"alert alert-{{ message.tags }}"}
+          {{ msg }}
+
+-macro post-header
+  -block post-header
+
+-macro page-container
+  -block page-container
+    .flex-grow
+      .page-content
+        -block suspension
+          {% if user_org.is_suspended %}
+            .px-12.-mt-4
+              -include "org_suspended_include.haml"
+          {% endif %}
+
+        .px-12.py-4
+
+          -if use_weni_layout and not show_sidemenu
+            %div.pb-4.-mt-4
+              -include "weni/weni_navigation_control.haml"
+
+          -block page-top
+            .flex.items-start
+              .flex.flex-col.mr-5.leading-tight
+                .page-title
+                  -block title
+
+                .page-subtitle
+                  -block subtitle
+
+              .flex-grow
+                .flex.justify-end.w-full
+                  -block gear-menu
+                    -include "gear_links_include.haml"
+
+            -block post-title
+
+          .mt-6
+            -block content
+          
+          -block post-content
 
 {% block body %}
 
 %body#pageBody.bg-gradient
+
+  -if not use_weni_layout
+    .weni-announcement
+      .weni-announcement-container.flex.flex-row
+        .weni-left
+          {{ announcement_left }}
+        .weni-divider
+        .weni-right
+          {{ announcement_right }}
+        %a.weni-button(href="{{ announcement_link }}" target="_blank" rel="noopener noreferrer")
+          {{ announcement_button }}
+        %button.weni-announcement-collapse
+            .unnnic-icon-delete-1-1.unnnic-icon-large
 
   -if COMPONENTS_DEV_MODE
     <script type="module">
@@ -149,90 +230,77 @@
         fields="/api/v2/fields.json"
         globals="/api/v2/globals.json")
 
-  .flex.flex-col.h-full
+  -if use_weni_layout
+    -block weni-side
+      .flex.flex-col{style: "height: inherit"}
+        .flex.flex-row.h-full
+          <!-- Sidemenu -->
+          -if show_sidemenu
+            -block sidemenu
+              #unnnic-sidebar.flex-col.h-screen.bg-color-unnnic-snow.unnnic-right-menu-divider
+                -block info
+                
+                -block side
+                  -include 'weni/side.html'
 
-    -block header
-      <!-- Header -->
+                -if messages
+                  -usemacro messages
 
-      -if user_org
-        .org-header.self-end
-          -if user_orgs|length > 1
-            .pull-right.toggle
-              .icon-menu-2
+          #unnnic-content.flex.flex-col.w-full
+            -usemacro post-header
+            <!-- Content -->
+            -usemacro page-container
 
-          .org
-            {{ user_org.name }}
+  -else
+    .flex.flex-col.h-full
 
-          .other-orgs.hide
-            -for org in user_orgs
-              -if org != user_org
-                .org.text-primary
-                  %a.posterize{href:'{% url "orgs.org_choose"%}?organization={{org.pk}}'}
-                    {{ org.name }}
+      -block header
+        <!-- Header -->
 
+        -if user_org
+          .org-header.self-end
+            -if user_orgs|length > 1
+              .pull-right.toggle
+                .icon-menu-2
 
+            .org
+              {{ user_org.name }}
 
-      #header
-        &nbsp;
-
-
-      %a#big-logo.logo.icon-logo{href:"{% if user.is_authenticated %}{% url 'msgs.msg_inbox' %}{% else %}/{% endif %}", title:"{{brand.name}}", class:"hover:no-underline"}
-        .name
-          {{brand.name}}
-
-      -block nav
-        -include 'includes/nav.html'
-
-
-    -if messages
-      -block messages
-        -if messages
-          -for msg in messages
-            %div{class:"alert alert-{{ message.tags }}"}
-              {{ msg }}
-
-
-    -block post-header
-    <!-- Content -->
-    -block page-container
-      .flex-grow
-        .page-content
-          -block suspension
-            {% if user_org.is_suspended %}
-              .px-12.-mt-4
-                -include "org_suspended_include.haml"
-            {% endif %}
-
-          .px-12.py-4
-            -block page-top
-              .flex.items-start
-                .flex.flex-col.mr-5.leading-tight
-                  .page-title
-                    -block title
-                      
-                  .page-subtitle
-                    -block subtitle
-
-                .flex-grow
-                  .flex.justify-end.w-full
-                    -block gear-menu
-                      -include "gear_links_include.haml"
-
-              -block post-title
+            .other-orgs.hide
+              -for org in user_orgs
+                -if org != user_org
+                  .org.text-primary
+                    %a.posterize{href:'{% url "orgs.org_choose"%}?organization={{org.pk}}'}
+                      {{ org.name }}
 
 
-            .mt-6
-              -block content
-            
-            -block post-content
 
-    -block footer
-      .footer.text-center.py-12.bg-gray-200.text-gray-500
-        {{ request.branding.credits|safe }}
-        %div
-          %a.p-1.text-gray-500.underline(href="/policy/")
-            -trans "Privacy"
+        #header
+          &nbsp;
 
+
+        %a#big-logo.logo.icon-logo{href:"{% if user.is_authenticated %}{% url 'msgs.msg_inbox' %}{% else %}/{% endif %}", title:"{{brand.name}}", class:"hover:no-underline"}
+          .name
+            {{brand.name}}
+
+        -block nav
+          -include 'includes/nav.html'
+
+
+      -if messages
+        -usemacro messages
+
+
+      -usemacro post-header
+      <!-- Content -->
+      -usemacro page-container
+
+      -block footer
+        .footer.text-center.py-12.bg-gray-200.text-gray-500
+          {{ request.branding.credits|safe }}
+          %div
+            %a.p-1.text-gray-500.underline(href="/policy/")
+              -trans "Privacy"
 
   -trans 'Delete' as title
   %temba-dialog#general-delete-confirmation.hidden{header:"{{title|escapejs}}", primaryButtonName:"{{title|escapejs}}", destructive: "true"}
@@ -255,6 +323,70 @@
           var anon_org = false;
         {% endif %}
       {% endif %}
+
+      function inIframe () {
+        try {
+          if (window.self !== window.top) {
+            $(".org-header").hide();
+          } else {
+            $(".org-header").show();
+          }
+        } catch (e) {
+          $(".org-header").hide();
+        }
+      }
+
+      function enableLinkTranslations() {
+        let connectBaseURL = '';
+
+        function translateAllLinks() {
+          if (!connectBaseURL) {
+            return;
+          }
+          const url = new URL(connectBaseURL);
+          const debug = url.host && url.host.includes('develop');
+          document.querySelectorAll('a[href]').forEach((link) => {
+            const internalHref = link.getAttribute('internal-href') || link.getAttribute('href');
+            if (['http://', 'https://'].some((initial) => internalHref.startsWith(initial))) {
+              return;
+            }
+            const dashHref = connectBaseURL + internalHref;
+            if (link.translateLinkConnect) {
+              if (link.getAttribute('href') === dashHref) {
+                return;
+              }
+              link.removeEventListener('click', link.translateLinkConnect);
+            }
+            link.setAttribute('internal-href', internalHref);
+            link.setAttribute('href', dashHref);
+            const randomId = Math.floor(Math.random() * 100);
+            link.addEventListener(
+              'click',
+              (link.translateLinkConnect = () => {
+                if (debug) {
+                  console.log(`TranslateLinkConnectId ${randomId}`);
+                }
+                link.setAttribute('href', internalHref);
+                setTimeout(() => {
+                  link.setAttribute('href', dashHref);
+                }, 0);
+              }),
+            );
+          });
+        };
+
+        window.addEventListener('message', (event) => {
+          const eventName = event.data && event.data.event;
+          if (eventName === 'setConnectBaseURL') {
+            connectBaseURL = event.data.connectBaseURL;
+            translateAllLinks();
+          }
+        });
+
+        window.parent.postMessage({ 
+          event: 'getConnectBaseURL'
+        }, '*');
+      }
 
       function posterize(href) {
         var url = $.url(href);
@@ -381,6 +513,30 @@
       });
 
       $(document).ready(function() {
+
+        {% if use_weni_layout %}
+          inIframe();
+
+          enableLinkTranslations();
+
+        {% endif %}
+
+        function announcementCollapse() {
+          $('.weni-announcement').hide();
+          $('#menu').addClass('collapsed')
+          $('.org-header').addClass('collapsed')
+        }
+
+        const announcementState = sessionStorage.getItem('weni-announcement-state');
+        if (announcementState === "false") {
+          announcementCollapse()
+        }
+
+        $(".weni-announcement-collapse").live('click', (event) => {
+          sessionStorage.setItem('weni-announcement-state', false);
+          announcementCollapse()
+        })
+
         if (navigator.appVersion.indexOf("Win")!=-1) {
           $("html").addClass("windows");
         }

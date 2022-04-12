@@ -70,10 +70,13 @@ class URN:
     FRESHCHAT_SCHEME = "freshchat"
     ROCKETCHAT_SCHEME = "rocketchat"
     DISCORD_SCHEME = "discord"
+    WENIWEBCHAT_SCHEME = "weniwebchat"
+    INSTAGRAM_SCHEME = "instagram"
 
     SCHEME_CHOICES = (
         (TEL_SCHEME, _("Phone number")),
         (FACEBOOK_SCHEME, _("Facebook identifier")),
+        (INSTAGRAM_SCHEME, _("Instagram identifier")),
         (TWITTER_SCHEME, _("Twitter handle")),
         (TWITTERID_SCHEME, _("Twitter ID")),
         (VIBER_SCHEME, _("Viber identifier")),
@@ -89,6 +92,7 @@ class URN:
         (VK_SCHEME, _("VK identifier")),
         (ROCKETCHAT_SCHEME, _("RocketChat identifier")),
         (DISCORD_SCHEME, _("Discord Identifier")),
+        (WENIWEBCHAT_SCHEME, _("WeniWebChat Identifier")),
     )
 
     VALID_SCHEMES = {s[0] for s in SCHEME_CHOICES}
@@ -187,8 +191,8 @@ class URN:
             except ValidationError:
                 return False
 
-        # facebook uses integer ids or temp ref ids
-        elif scheme == cls.FACEBOOK_SCHEME:
+        # facebook use integer ids or temp ref ids
+        elif scheme in [cls.FACEBOOK_SCHEME]:
             # we don't validate facebook refs since they come from the outside
             if URN.is_path_fb_ref(path):
                 return True
@@ -201,8 +205,8 @@ class URN:
                 except ValueError:
                     return False
 
-        # telegram and whatsapp use integer ids
-        elif scheme in [cls.TELEGRAM_SCHEME, cls.WHATSAPP_SCHEME]:
+        # telegram, whatsapp and instagram use integer ids
+        elif scheme in [cls.TELEGRAM_SCHEME, cls.WHATSAPP_SCHEME, cls.INSTAGRAM_SCHEME]:
             return regex.match(r"^[0-9]+$", path, regex.V0)
 
         # validate Viber URNS look right (this is a guess)
@@ -1303,7 +1307,12 @@ class ContactURN(models.Model):
     """
 
     # schemes that support "new conversation" triggers
-    SCHEMES_SUPPORTING_NEW_CONVERSATION = {URN.FACEBOOK_SCHEME, URN.VIBER_SCHEME, URN.TELEGRAM_SCHEME}
+    SCHEMES_SUPPORTING_NEW_CONVERSATION = {
+        URN.FACEBOOK_SCHEME,
+        URN.VIBER_SCHEME,
+        URN.TELEGRAM_SCHEME,
+        URN.INSTAGRAM_SCHEME,
+    }
     SCHEMES_SUPPORTING_REFERRALS = {URN.FACEBOOK_SCHEME}  # schemes that support "referral" triggers
 
     # mailroom sets priorites like 1000, 999, ...
