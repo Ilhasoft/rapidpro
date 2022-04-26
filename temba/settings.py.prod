@@ -408,6 +408,15 @@ USER_RECOVER_MAX_ATTEMPTS = env.int("USER_RECOVER_MAX_ATTEMPTS", default=5)
 # Channel that should not be displayed in the old design
 OLD_DESIGN_EXCLUDED_CHANNELS_CODES = env.list("OLD_DESIGN_EXCLUDED_CHANNELS_CODES", default=["TG", "WWC", "IG"])
 
+
+# ------------------------------------------------------------------------------------------
+# Option to disable mozilla_django_oidc completely, removing it from:
+#   REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES]
+#   MIDDLEWARE
+#   INSTALLED_APPS
+#   LOGGING
+#   AUTHENTICATION_BACKENDS
+# ------------------------------------------------------------------------------------------
 DISABLE_OIDC = env.bool("DISABLE_OIDC", default=False)
 if DISABLE_OIDC:
     REST_FRAMEWORK["DEFAULT_AUTHENTICATION_CLASSES"].remove(
