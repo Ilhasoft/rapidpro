@@ -2,6 +2,7 @@ import logging
 
 import requests
 from django_redis import get_redis_connection
+from django.db import transaction
 
 from django.utils import timezone
 
@@ -37,8 +38,9 @@ def refresh_whatsapp_tokens():
 
                 if resp.status_code != 200:
                     continue
+                with transaction.atomic():
+                    channel.config["auth_token"] = resp.json()["users"][0]["token"]
+                    channel.save(update_fields=["config"])
 
-                channel.config["auth_token"] = resp.json()["users"][0]["token"]
-                channel.save(update_fields=["config"])
             except Exception as e:
                 logger.error(f"Error refreshing whatsapp tokens: {str(e)}", exc_info=True)
