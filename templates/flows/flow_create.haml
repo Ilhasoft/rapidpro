@@ -23,6 +23,52 @@
 
   :javascript
 
+    function fakeCreateButton() {
+      var modalBody = document.querySelector("#create-flow-modal").shadowRoot;
+      var dialogMask = modalBody.querySelector("temba-dialog").shadowRoot;
+      var dialogFooter = dialogMask.querySelector(".dialog-footer");
+      var primaryButton = dialogFooter.children[0];
+      const rect = primaryButton.getBoundingClientRect();
+
+      var fakeCreateButton = document.createElement("div");
+      fakeCreateButton.innerHTML = ""
+
+      dialogFooter.style.position = "relative";
+      fakeCreateButton.style.position = "absolute";
+      fakeCreateButton.style.left = rect.left + window.scrollX + "px";
+      fakeCreateButton.style.top = rect.top + window.scrollY + "px";
+
+      fakeCreateButton.style.width = primaryButton.offsetWidth + "px";
+      fakeCreateButton.style.height = primaryButton.offsetHeight + "px";
+
+      fakeCreateButton.style.pointerEvents = "none";
+
+      fakeCreateButton.style.zIndex = 1000000;
+
+      fakeCreateButton.id = "fake-create-button";
+
+      document.body.appendChild(fakeCreateButton);
+    }
+
+    function removeFakeCreateButton() {
+      var fakeCreateButton = document.querySelector("#fake-create-button");
+      if (fakeCreateButton) {
+        fakeCreateButton.remove();
+      }
+    }
+
+    $(document).ready(function(){
+      setTimeout(function() {
+        removeFakeCreateButton();
+        fakeCreateButton();
+      }, 500)
+
+      window.addEventListener('resize', function(event){
+        removeFakeCreateButton();
+        fakeCreateButton();
+      });
+    });
+
     var modalBody = document.querySelector("#create-flow-modal").shadowRoot;
     var typeSelect = modalBody.querySelector("temba-select[name='flow_type']");
     var keywords = modalBody.querySelector(".keywords");
