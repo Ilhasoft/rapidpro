@@ -1670,7 +1670,7 @@
       "revision": 1
     },
     {
-      "name": "Fluxo de boas-vindas (padr\u00e3o para teste)",
+      "name": "Welcome flow",
       "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
       "spec_version": "13.1.0",
       "language": "base",
@@ -1681,11 +1681,11 @@
           "actions": [
             {
               "attachments": [],
-              "text": "Seja bem vindo (a) voc\u00ea desejaria saber mais sobre os nossos produtos?",
+              "text": "Welcome, would you like to know more about our products?",
               "type": "send_msg",
               "quick_replies": [
-                "Sim",
-                "N\u00e3o"
+                "Yes ",
+                "No"
               ],
               "uuid": "e04dd5bf-93ba-4c66-be8b-9c543a4d7031"
             }
@@ -1706,7 +1706,7 @@
             "cases": [
               {
                 "arguments": [
-                  "sim"
+                  "Yes"
                 ],
                 "type": "has_any_word",
                 "uuid": "0ae37b1e-4ddd-4974-a6b5-8d8738051ead",
@@ -1714,7 +1714,7 @@
               },
               {
                 "arguments": [
-                  "n\u00e3o"
+                  "No"
                 ],
                 "type": "has_any_word",
                 "uuid": "588c559c-9741-4078-8826-b8cadbafbca6",
@@ -1776,7 +1776,7 @@
           "actions": [
             {
               "attachments": [],
-              "text": "Que \u00f3timo! Voc\u00ea pode entrar no nosso site para ter acesso ao nosso cat\u00e1logo.",
+              "text": "Great! You can enter our website to have access to our catalogue.\n",
               "type": "send_msg",
               "quick_replies": [],
               "uuid": "8eac1fa7-56c0-40f3-98c0-ce6775f6ee05"
@@ -1794,7 +1794,7 @@
           "actions": [
             {
               "attachments": [],
-              "text": "N\u00e3o entendi, voc\u00ea poderia repetir?",
+              "text": "I don't understand, could you repeat?\n",
               "type": "send_msg",
               "quick_replies": [],
               "uuid": "33214836-49f1-4901-ae6c-a4d07e40f538"
@@ -1812,7 +1812,7 @@
           "actions": [
             {
               "attachments": [],
-              "text": "Tudo bem, muito obrigado (a)! Pode voltar aqui quando estiver pronto (a). Nos vemos em breve :)\n",
+              "text": "That's alright, thank you very much! You can come back here when you're ready. See you soon :)",
               "type": "send_msg",
               "quick_replies": [],
               "uuid": "ca61f10f-0549-4150-b761-feb0b7d3505a"
@@ -1868,7 +1868,7 @@
           }
         }
       },
-      "revision": 24,
+      "revision": 33,
       "expire_after_minutes": 10080,
       "metadata": {
         "expires": 10080
@@ -1882,7 +1882,7 @@
       "trigger_type": "K",
       "flow": {
         "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
-        "name": "Fluxo de boas-vindas (padr\u00e3o para teste)"
+        "name": "Welcome flow"
       },
       "groups": [],
       "exclude_groups": [],
@@ -1892,7 +1892,7 @@
       "trigger_type": "K",
       "flow": {
         "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
-        "name": "Fluxo de boas-vindas (padr\u00e3o para teste)"
+        "name": "Welcome flow"
       },
       "groups": [],
       "exclude_groups": [],
@@ -1902,7 +1902,7 @@
       "trigger_type": "K",
       "flow": {
         "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
-        "name": "Fluxo de boas-vindas (padr\u00e3o para teste)"
+        "name": "Welcome flow"
       },
       "groups": [],
       "exclude_groups": [],
@@ -1912,11 +1912,31 @@
       "trigger_type": "K",
       "flow": {
         "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
-        "name": "Fluxo de boas-vindas (padr\u00e3o para teste)"
+        "name": "Welcome flow"
       },
       "groups": [],
       "exclude_groups": [],
       "keyword": "sim"
+    },
+    {
+      "trigger_type": "K",
+      "flow": {
+        "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
+        "name": "Welcome flow"
+      },
+      "groups": [],
+      "exclude_groups": [],
+      "keyword": "hello"
+    },
+    {
+      "trigger_type": "K",
+      "flow": {
+        "uuid": "27447a45-bd46-4fb0-b049-7849fe0d61fd",
+        "name": "Welcome flow"
+      },
+      "groups": [],
+      "exclude_groups": [],
+      "keyword": "hi"
     }
   ],
   "fields": [],
