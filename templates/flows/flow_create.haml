@@ -57,7 +57,7 @@
       }
     }
 
-    $(document).ready(function(){
+    function setupFakeCreateButton() {
       const contentLoadTimeout = 500;
       setTimeout(function() {
         removeFakeCreateButton();
@@ -68,7 +68,9 @@
         removeFakeCreateButton();
         fakeCreateButton();
       });
-    });
+    }
+
+    $(document).ready(setupFakeCreateButton);
 
     var modalBody = document.querySelector("#create-flow-modal").shadowRoot;
     var typeSelect = modalBody.querySelector("temba-select[name='flow_type']");
