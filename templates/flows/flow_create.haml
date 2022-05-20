@@ -58,10 +58,11 @@
     }
 
     $(document).ready(function(){
+      const contentLoadTimeout = 500;
       setTimeout(function() {
         removeFakeCreateButton();
         fakeCreateButton();
-      }, 500)
+      }, contentLoadTimeout)
 
       window.addEventListener('resize', function(event){
         removeFakeCreateButton();
