@@ -1,1 +1,1 @@
-from .type import SlackType
+from .type import SlackType # noqa

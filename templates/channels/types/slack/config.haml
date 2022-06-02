@@ -1,0 +1,11 @@
+-load i18n
+
+-blocktrans trimmed
+  To finish configuring your connection you'll need to set the following callback URL on your app
+  Event Subscription Request URL.
+
+.card.mt-6
+  .title
+    -trans "Request URL"
+  .code.inline-block.m-0
+    https://{{ channel.callback_domain }}/c/sl/{{ channel.uuid }}/receive/

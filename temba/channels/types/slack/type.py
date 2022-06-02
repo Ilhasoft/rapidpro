@@ -10,15 +10,14 @@ class SlackType(ChannelType):
     A Slack bot channel
     """
 
-    BOT_TOKEN = "bot_token"
-    USER_TOKEN = "user_token"
-    VERIFICATION_TOKEN = "verification_token"
+    CONFIG_BOT_TOKEN = "bot_token"
+    CONFIG_USER_TOKEN = "user_token"
+    CONFIG_VERIFICATION_TOKEN = "verification_token"
 
     code = "SL"
     slug = "slack"
     name = "Slack"
     icon = "icon-slack"
-    show_config_page = False
     category = ChannelType.Category.SOCIAL_MEDIA
     schemes = [URN.SLACK_SCHEME]
 
