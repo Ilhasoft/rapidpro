@@ -5,6 +5,7 @@ from temba.contacts.models import URN
 from ...models import ChannelType
 from .views import ClaimView
 
+
 class SlackType(ChannelType):
     """
     A Slack bot channel
@@ -22,9 +23,9 @@ class SlackType(ChannelType):
     schemes = [URN.SLACK_SCHEME]
 
     courier_url = r"^sl/(?P<uuid>[a-z0-9\-]+)/receive$"
-    
+
     claim_blurb = _("Add a %(link)s bot to send and receive messages to Slack users.") % {
         "link": '<a href="https://slack.com">Slack</a>'
-        }
-    
+    }
+
     claim_view = ClaimView
