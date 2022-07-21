@@ -21,6 +21,9 @@ ARG RAPIDPRO_APPS_GIT_BRANCH
 ARG FLOWEDITOR_VERSION
 ARG FLOWEDITOR_REPO
 ARG FLOWEDITOR_BRANCH
+ARG TEMBA_COMPONENTS_VERSION
+ARG TEMBA_COMPONENTS_REPO
+ARG TEMBA_COMPONENTS_BRANCH
 
 
 ENV PYTHONUNBUFFERED 1
@@ -34,6 +37,7 @@ ENV PROJECT_CONF      ${PROJECT_PATH}-conf
 ENV NPM_CONFIG_PREFIX /opt/npm-globals
 ENV PATH              "${NPM_CONFIG_PREFIX}/bin:${PATH}"
 ENV FLOWEDITOR_TGZ "nyaruka-flow-editor-${FLOWEDITOR_VERSION}.tgz"
+ENV TEMBA_COMPONENTS_TGZ "nyaruka-temba-components-${TEMBA_COMPONENTS_VERSION}.tgz"
 
 RUN apt-get update \
  && apt-get install --no-install-recommends --no-install-suggests -y apt-utils \
@@ -77,8 +81,10 @@ RUN su $PROJECT_USER -c "npm install --global \
 RUN su $PROJECT_USER -c "npm install"
 
 RUN su $PROJECT_USER -c "git clone --branch ${FLOWEDITOR_BRANCH} ${FLOWEDITOR_REPO}"
-
 RUN su $PROJECT_USER -c "cd floweditor && yarn install && yarn run build && npm pack && cd .. && npm install ./floweditor/${FLOWEDITOR_TGZ}"
+
+RUN su $PROJECT_USER -c "git clone --branch ${TEMBA_COMPONENTS_BRANCH} ${TEMBA_COMPONENTS_REPO}"
+RUN su $PROJECT_USER -c "cd temba-components && yarn install && yarn run build && npm pack && cd .. && npm install ./temba-components/${TEMBA_COMPONENTS_TGZ}"
 
 RUN su $PROJECT_USER -c "npm prune --production"
 
