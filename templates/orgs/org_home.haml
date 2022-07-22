@@ -42,7 +42,8 @@
           });
 
           $("ul[class^='dropdown-menu'] > li:nth-child(1),\
-             ul[class^='dropdown-menu'] > li:nth-last-child(-n+3)").each(function() {
+             ul[class^='dropdown-menu'] > li:nth-last-child(-n+3),\
+             div[class^='weni-navigation-control__back']").each(function() {
             $(this).addClass("hide-buttons");
           });
 
