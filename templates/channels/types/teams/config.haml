@@ -1,0 +1,10 @@
+-load i18n
+
+-blocktrans trimmed
+  To finish configuring your connection, you will need to define the following callback URL in your application on Azure. Go to your bot resource in Azure, in the left menu click on Settings and put the URL below in Messaging Endpoint.
+
+.card.mt-6
+  .title
+    -trans "Request URL"
+  .code.inline-block.m-0
+    https://{{ channel.callback_domain }}/c/tm/{{ channel.uuid }}/receive
