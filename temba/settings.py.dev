@@ -86,7 +86,7 @@ MAILROOM_AUTH_TOKEN = None
 # -----------------------------------------------------------------------------------
 # Load development apps
 # -----------------------------------------------------------------------------------
-INSTALLED_APPS = INSTALLED_APPS + ("storages",)
+INSTALLED_APPS = INSTALLED_APPS + ("storages","macros",)
 
 # -----------------------------------------------------------------------------------
 # In development, add in extra logging for exceptions and the debug toolbar
@@ -111,3 +111,13 @@ warnings.filterwarnings(
 # Make our sitestatic URL be our static URL on development
 # -----------------------------------------------------------------------------------
 STATIC_URL = "/sitestatic/"
+
+# User reset password limit
+USER_RECOVER_TIME_INTERVAL = 12
+USER_RECOVER_MAX_ATTEMPTS = 5
+
+# necessery to create new channel like whatsapp, telegram etc.
+IS_PROD = True
+
+# Addres Ngrok
+BRANDING["rapidpro.io"]["domain"] = "your_ngrok_adress"
