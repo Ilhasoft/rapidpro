@@ -9,7 +9,7 @@ from sentry_sdk.integrations.celery import CeleryIntegration
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration, ignore_logger
 
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from celery.schedules import crontab
 
@@ -188,7 +188,6 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "django.template.context_processors.request",
                 "temba.context_processors.branding",
-                "temba.context_processors.analytics",
                 "temba.context_processors.config",
                 "temba.orgs.context_processors.user_group_perms_processor",
                 "temba.channels.views.channel_status_processor",
@@ -351,6 +350,7 @@ BRANDING = {
         "title": _("Visually build nationally scalable mobile applications"),
         "description": _("Visually build nationally scalable mobile applications from anywhere in the world."),
         "credits": _("Copyright &copy; 2012-2017 UNICEF, Nyaruka. All Rights Reserved."),
+        "support_widget": False,
     }
 }
 DEFAULT_BRAND = os.environ.get("DEFAULT_BRAND", "rapidpro.io")
@@ -482,7 +482,6 @@ PERMISSIONS = {
         "export_results",
         "filter",
         "menu",
-        "recent_messages",
         "recent_contacts",
         "results",
         "revisions",
@@ -877,7 +876,6 @@ GROUP_PERMISSIONS = {
         "flows.flow_list",
         "flows.flow_menu",
         "flows.flow_editor",
-        "flows.flow_recent_messages",
         "flows.flow_recent_contacts",
         "flows.flow_results",
         "flows.flow_revisions",
@@ -1196,6 +1194,10 @@ CHANNEL_TYPES = [
     "temba.channels.types.teams.TeamsType",
 ]
 
+ANALYTICS_TYPES = [
+    "temba.utils.analytics.ConsoleBackend",
+]
+
 # set of ISO-639-3 codes of languages to allow in addition to all ISO-639-1 languages
 NON_ISO6391_LANGUAGES = {}
 
@@ -1211,31 +1213,13 @@ SESSION_CACHE_ALIAS = "default"
 TWITTER_API_KEY = os.environ.get("TWITTER_API_KEY", "MISSING_TWITTER_API_KEY")
 TWITTER_API_SECRET = os.environ.get("TWITTER_API_SECRET", "MISSING_TWITTER_API_SECRET")
 
-# Segment.io key for analytics
-SEGMENT_IO_KEY = os.environ.get("SEGMENT_IO_KEY", "")
-
-# Intercom token and app_id for support
-INTERCOM_APP_ID = os.environ.get("INTERCOM_APP_ID", "")
-INTERCOM_TOKEN = os.environ.get("INTERCOM_TOKEN", "")
-
-# Crisp id and key support option
-SUPPORT_SECRET = os.environ.get("SUPPORT_SECRET", "")
-CRISP_IDENTIFIER = os.environ.get("CRISP_IDENTIFIER", "")
-CRISP_KEY = os.environ.get("CRISP_KEY", "")
-CRISP_WEBSITE_ID = os.environ.get("CRISP_WEBSITE_ID", "")
-
 # Google analytics tracking ID
 GOOGLE_TRACKING_ID = os.environ.get("GOOGLE_TRACKING_ID", "")
-
-# Librato for gauge support
-LIBRATO_USER = os.environ.get("LIBRATO_USER", "")
-LIBRATO_TOKEN = os.environ.get("LIBRATO_TOKEN", "")
 
 MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
 
 ZENDESK_CLIENT_ID = os.environ.get("ZENDESK_CLIENT_ID", "")
 ZENDESK_CLIENT_SECRET = os.environ.get("ZENDESK_CLIENT_SECRET", "")
-
 
 # -----------------------------------------------------------------------------------
 #

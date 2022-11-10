@@ -764,7 +764,7 @@
   content: "\e90a";
 }
 .icon-vk:before {
-  content: "\e900";
+  content: "\e910";
 }
 .icon-wechat:before {
   content: "\ea94";
@@ -779,5 +779,5 @@
   content: "\e918";
 }
 .icon-vonage:before {
-  content: "\e910";
+  content: "\e91f";
 }
