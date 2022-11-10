@@ -39,7 +39,7 @@ from temba.channels.models import Channel
 from temba.contacts.models import URN, ContactField, ContactGroup
 from temba.contacts.search import SearchException, parse_query
 from temba.flows.models import Flow, FlowRevision, FlowRun, FlowRunCount, FlowSession, FlowStart
-from temba.flows.tasks import export_flow_results_task
+from temba.flows.tasks import export_flow_results_task, update_session_wait_expires
 from temba.ivr.models import IVRCall
 from temba.mailroom import FlowValidationException
 from temba.orgs.models import IntegrationType, Org
@@ -681,10 +681,7 @@ class FlowCRUDL(SmartCRUDL):
                             modified_by=user,
                         )
 
-            # run async task to update all runs
-            from .tasks import update_run_expirations_task
-
-            on_transaction_commit(lambda: update_run_expirations_task.delay(obj.pk))
+            on_transaction_commit(lambda: update_session_wait_expires.delay(obj.pk))
 
             return obj
 
@@ -1936,26 +1933,18 @@ class FlowCRUDL(SmartCRUDL):
             return warnings
 
         def save(self, *args, **kwargs):
-            # gather up the recipients for this flow start
-            groups = []
-            contacts = []
             query = self.form.cleaned_data["query"]
-
             restart_participants = not self.form.cleaned_data["exclude_reruns"]
             include_contacts_with_runs = not self.form.cleaned_data["exclude_in_other"]
 
-            analytics.track(
-                self.request.user,
-                "temba.flow_broadcast",
-                dict(contacts=len(contacts), groups=len(groups), query=query),
-            )
+            analytics.track(self.request.user, "temba.flow_broadcast", dict(query=query))
 
             # queue the flow start to be started by mailroom
             self.object.async_start(
                 self.request.user,
-                groups,
-                contacts,
-                query,
+                groups=(),
+                contacts=(),
+                query=query,
                 restart_participants=restart_participants,
                 include_active=include_contacts_with_runs,
             )
