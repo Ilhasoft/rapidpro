@@ -1,3 +1,27 @@
+1.6.9-rapidpro-7.1.27
+----------
+* Modify contact history request trigger method to `load`
+
+1.6.8-rapidpro-7.1.27
+----------
+* Add weni-rp-apps orgs_api app
+
+1.6.7-rapidpro-7.1.27
+----------
+* Weni announcement as billing alert
+
+1.6.6-rapidpro-7.1.27
+----------
+* Add ticketer name input field on twilioflex connect #380
+
+1.6.5-rapidpro-7.1.27
+----------
+* Env for `refresh_whatsapp_templates` task time schedule
+
+1.6.4-rapidpro-7.1.27
+----------
+* Improve `trim_channel_logs_task` performance by splitting the query
+
 1.6.3-rapidpro-7.1.27
 ----------
 * Bump weni-rp-apps from 1.0.28 to 1.0.29

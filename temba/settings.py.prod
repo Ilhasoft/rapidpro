@@ -231,6 +231,7 @@ INSTALLED_APPS += (
     "weni.grpc.statistic",
     "weni.internal",
     "weni.ticketer_queues",
+    "weni.orgs_api",
     # OIDC authentication
     "mozilla_django_oidc",
     "weni.auth",
@@ -298,7 +299,7 @@ CELERY_BEAT_SCHEDULE["retry-errored-messages"] = {
 CELERY_BEAT_SCHEDULE["refresh-whatsapp-tokens"] = {"task": "refresh_whatsapp_tokens", "schedule": timedelta(hours=12)}
 CELERY_BEAT_SCHEDULE["refresh-whatsapp-templates"] = {
     "task": "refresh_whatsapp_templates",
-    "schedule": timedelta(hours=1),
+    "schedule": timedelta(minutes=env.int("REFRESH_WPP_TEMPLATES_TASK_TIME ", default=60)),
 }
 
 
