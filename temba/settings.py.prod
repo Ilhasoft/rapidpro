@@ -78,6 +78,7 @@ BRANDING = {
         "title": _(brand_info.get("title")),
         "description": _(brand_info.get("description")),
         "credits": _(brand_info.get("credits")),
+        "inactive_threshold": brand_info.get("inactive_threshold"),
     }
 }
 HOSTNAME = DEFAULT_BRAND
