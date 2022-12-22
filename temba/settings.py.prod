@@ -459,3 +459,58 @@ CORS_ORIGIN_WHITELIST = env.tuple("CORS_ORIGIN_WHITELIST", default=())
 # Fixed token with super user access
 
 FIXED_SUPER_ACCESS_TOKEN = env("FIXED_SUPER_ACCESS_TOKEN")
+
+# ----------------------------------------------------------------------------------------
+# The list below excludes from the list the channels that go to the generic integrations channels
+# ----------------------------------------------------------------------------------------
+DISABLED_CHANNELS_INTEGRATIONS = [
+    'WA',
+    'WAC',
+    'T',
+    'TWA',
+    'SW',
+    'NX',
+    'BM',
+    'BL',
+    'BS',
+    'CK',
+    'CT',
+    'CS',
+    'DA',
+    'DK',
+    'EX',
+    'FB',
+    'FBA',
+    'GL',
+    'HX',
+    'HM',
+    'H9',
+    'I2',
+    'JS',
+    'KN',
+    'LN',
+    'M3',
+    'MK',
+    'MT',
+    'MB',
+    'NV',
+    'PL',
+    'RR',
+    'SQ',
+    'SC',
+    'ST',
+    'TG',
+    'TS',
+    'TQ',
+    'TT',
+    'VB',
+    'VK',
+    'WV',
+    'WC',
+    'YO',
+    'ZV',
+    'A',
+    'RC',
+    'WWC',
+    'IG'
+]
