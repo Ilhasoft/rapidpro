@@ -233,6 +233,7 @@ INSTALLED_APPS += (
     "weni.ticketer_queues",
     "weni.orgs_api",
     "weni.success_orgs",
+    "weni.activities",
     # OIDC authentication
     "mozilla_django_oidc",
     "weni.auth",
