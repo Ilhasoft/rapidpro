@@ -444,6 +444,9 @@ if DISABLE_OIDC:
 
     OIDC_DRF_AUTH_BACKEND = None
 
+CONNECT_BASE_URL = env("CONNECT_BASE_URL", default="https://api.dev.cloud.weni.ai")
+
+
 # ----------------------------------------------------------------------------------------
 # Option to enable redirect all routes (except api), to redirect view 
 # ----------------------------------------------------------------------------------------
