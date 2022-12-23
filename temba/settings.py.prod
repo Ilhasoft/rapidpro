@@ -463,4 +463,4 @@ FIXED_SUPER_ACCESS_TOKEN = env("FIXED_SUPER_ACCESS_TOKEN")
 # ----------------------------------------------------------------------------------------
 # The list below excludes from the list the channels that go to the generic integrations channels
 # ----------------------------------------------------------------------------------------
-DISABLED_CHANNELS_INTEGRATIONS = env.list("DISABLED_CHANNELS_INTEGRATIONS", default=())
+DISABLED_CHANNELS_INTEGRATIONS = env.list("DISABLED_CHANNELS_INTEGRATIONS", default=[])
