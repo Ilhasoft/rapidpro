@@ -62,6 +62,7 @@ jobs:
 
     - name: Initialize environment
       run: |
+        npm update
         poetry install
         npm install
         sudo npm install -g less
