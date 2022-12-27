@@ -64,7 +64,7 @@ jobs:
       run: |
         sudo npm install -g npm@8.19.3
         poetry install
-        poetry add slack_sdk
+        poetry add -n --lock $(cat docker/pip-requires.txt)
         sudo npm install -g npm@8.19.3
         npm install
         sudo npm install -g npm@8.19.3
