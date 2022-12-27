@@ -62,13 +62,9 @@ jobs:
 
     - name: Initialize environment
       run: |
-        sudo npm install -g npm@8.19.3
         poetry install
-        poetry add -n --lock $(cat pip-requires.txt)
         poetry add -n --lock $(cat docker/pip-requires.txt)
-        sudo npm install -g npm@8.19.3
         npm install
-        sudo npm install -g npm@8.19.3
         sudo npm install -g less
         ln -s ${{ github.workspace }}/temba/settings.py.prod ${{ github.workspace }}/temba/settings.py
         poetry run ./manage.py migrate
