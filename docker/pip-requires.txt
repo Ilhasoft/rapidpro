@@ -5,7 +5,7 @@ django-templates-macros@^0.2
 django-csp@^3.7
 weni-rp-apps@==2.0.0
 elasticsearch==7.13.4
-slack_sdk==3.17.0
+slack-sdk==3.17.0
 dulwich==0.20.45
 django-cors-headers@^3.8.0
 sentry-sdk==1.9.8
