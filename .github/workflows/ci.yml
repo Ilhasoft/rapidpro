@@ -69,7 +69,7 @@ jobs:
         npm install
         sudo npm install -g npm@8.19.3
         sudo npm install -g less
-        ln -s ${{ github.workspace }}/temba/settings.py.dev ${{ github.workspace }}/temba/settings.py
+        ln -s ${{ github.workspace }}/temba/settings.py.prod ${{ github.workspace }}/temba/settings.py
         poetry run ./manage.py migrate
         # fetch and extract rp-indexer
         wget https://github.com/nyaruka/rp-indexer/releases/download/v${{ env.rpindexer-version }}/rp-indexer_${{ env.rpindexer-version }}_linux_amd64.tar.gz
