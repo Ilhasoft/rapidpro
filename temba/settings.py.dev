@@ -111,3 +111,7 @@ warnings.filterwarnings(
 # Make our sitestatic URL be our static URL on development
 # -----------------------------------------------------------------------------------
 STATIC_URL = "/sitestatic/"
+
+# User reset password limit
+USER_RECOVER_TIME_INTERVAL = env.int("USER_RECOVER_TIME_INTERVAL", default=12)
+USER_RECOVER_MAX_ATTEMPTS = env.int("USER_RECOVER_MAX_ATTEMPTS", default=5)
