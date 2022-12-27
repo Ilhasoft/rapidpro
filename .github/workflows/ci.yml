@@ -63,6 +63,7 @@ jobs:
     - name: Initialize environment
       run: |
         poetry install
+        poetry add django-environ
         poetry add -n --lock $(cat docker/pip-requires.txt)
         npm install
         sudo npm install -g less
