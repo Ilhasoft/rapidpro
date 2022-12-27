@@ -64,8 +64,8 @@ jobs:
       run: |
         poetry install
         npm install
-        sudo npm install -g less
         sudo npm install -g npm@9.2.0
+        sudo npm install -g less
         ln -s ${{ github.workspace }}/temba/settings.py.dev ${{ github.workspace }}/temba/settings.py
         poetry run ./manage.py migrate
         # fetch and extract rp-indexer
