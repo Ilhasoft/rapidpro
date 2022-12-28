@@ -236,6 +236,7 @@ INSTALLED_APPS += (
     "weni.orgs_api",
     "weni.success_orgs",
     "weni.activities",
+    "weni.s3",
     # OIDC authentication
     "mozilla_django_oidc",
     "weni.auth",
