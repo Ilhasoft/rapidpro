@@ -160,6 +160,7 @@ DATABASES["readonly"] = DATABASES["default"].copy()
 # BROKER
 # ------------------------------------------------------------------------------
 CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 BROKER_BACKEND = env("BROKER_BACKEND", default="redis")
 
 # CACHES
