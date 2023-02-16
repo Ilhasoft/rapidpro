@@ -23,5 +23,5 @@ app.autodiscover_tasks(
 # TODO: Move logic to settings.py.prod or rapidpro-apps
 app.conf.task_routes = {
     'create_recent_activity': {'queue': 'async'},
-    'import_contacts_task': {'queue': 'import'},
+    'temba.contacts.tasks.import_contacts_task': {'queue': 'import'},
 }
