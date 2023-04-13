@@ -9,3 +9,4 @@ slack_sdk==3.17.0
 dulwich==0.20.45
 django-cors-headers@^3.8.0
 sentry-sdk==1.9.8
+Django==4.1.7
