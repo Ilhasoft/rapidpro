@@ -1,3 +1,11 @@
+1.6.10-rapidpro-7.4.2
+----------
+* Update Rapidpro to version 7.4.2
+* Fix: Add instance check on contact field form
+* Update django-compressor to 4.3.1
+* Feat: branding inactive threshold env
+* Fix: Missing aws querystring auth and codecov
+
 1.6.9-rapidpro-7.1.27
 ----------
 * Modify contact history request trigger method to `load`
