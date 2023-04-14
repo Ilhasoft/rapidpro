@@ -1,3 +1,9 @@
+1.6.10-rapidpro-7.1.27
+----------
+* Fix: Add instance check on contact field form
+* Update django-compressor to 4.3.1
+* Feat: branding inactive threshold env
+
 1.6.9-rapidpro-7.1.27
 ----------
 * Modify contact history request trigger method to `load`
