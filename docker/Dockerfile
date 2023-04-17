@@ -18,9 +18,6 @@ ARG BRANDING_ENABLED
  
 ARG RAPIDPRO_APPS_GIT_URL
 ARG RAPIDPRO_APPS_GIT_BRANCH
-ARG FLOWEDITOR_VERSION
-ARG FLOWEDITOR_REPO
-ARG FLOWEDITOR_BRANCH
 
 
 ENV PYTHONUNBUFFERED 1
@@ -33,7 +30,6 @@ ENV PROJECT_GROUP     $PROJECT_USER
 ENV PROJECT_CONF      ${PROJECT_PATH}-conf
 ENV NPM_CONFIG_PREFIX /opt/npm-globals
 ENV PATH              "${NPM_CONFIG_PREFIX}/bin:${PATH}"
-ENV FLOWEDITOR_TGZ "nyaruka-flow-editor-${FLOWEDITOR_VERSION}.tgz"
 
 RUN apt-get update \
  && apt-get install --no-install-recommends --no-install-suggests -y apt-utils \
@@ -73,14 +69,6 @@ RUN su $PROJECT_USER -c "npm install --global \
   coffeescript \
   less \
   yarn"
-
-RUN su $PROJECT_USER -c "npm install"
-
-RUN su $PROJECT_USER -c "git clone --branch ${FLOWEDITOR_BRANCH} ${FLOWEDITOR_REPO}"
-
-RUN su $PROJECT_USER -c "cd floweditor && yarn install && yarn run build && npm pack && cd .. && npm install ./floweditor/${FLOWEDITOR_TGZ}"
-
-RUN su $PROJECT_USER -c "npm prune --production"
 
 RUN su $PROJECT_USER -c "ln -s $PROJECT_PATH/temba/settings.py.prod $PROJECT_PATH/temba/settings.py"
 
