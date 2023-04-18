@@ -1,3 +1,7 @@
+1.7.0-rapidpro-7.4.2
+----------
+* Use Weni Floweditor from package.json
+
 1.6.22-rapidpro-7.4.2
 ----------
 * Update Rapidpro to version 7.4.2
