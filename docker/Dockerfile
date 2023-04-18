@@ -72,6 +72,8 @@ RUN su $PROJECT_USER -c "npm install --global \
 
 RUN su $PROJECT_USER -c "ln -s $PROJECT_PATH/temba/settings.py.prod $PROJECT_PATH/temba/settings.py"
 
+RUN su $PROJECT_USER -c "npm install"
+
 EXPOSE 8000
 EXPOSE 8001
 ENTRYPOINT ["sh", "./docker/start"]
