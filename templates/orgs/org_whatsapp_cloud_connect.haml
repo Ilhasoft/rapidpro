@@ -56,11 +56,12 @@
     window.fbAsyncInit = function () {
       // JavaScript SDK configuration and setup
       FB.init({
-        appId:    '{{ facebook_app_id }}', // Meta App ID
+        appId:    '{{ whatsapp_app_id }}', // Meta App ID
         xfbml:    true, // parse social plugins on this page
         version:  'v14.0' //Graph API version
       });
     };
+
     // Load the JavaScript SDK asynchronously
     (function (d, s, id) {
       var js, fjs = d.getElementsByTagName(s)[0];
