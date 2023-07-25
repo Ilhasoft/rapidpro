@@ -1,3 +1,7 @@
+1.7.1-rapidpro-7.4.2
+----------
+* Fix: WhatsApp cloud connect behavior
+
 1.7.0-rapidpro-7.4.2
 ----------
 * Use Weni Floweditor from package.json
