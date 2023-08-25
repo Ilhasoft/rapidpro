@@ -1,3 +1,7 @@
+1.7.2-rapidpro-7.4.2
+----------
+* Fix: Fix error in create contact and update rp-apps version
+
 1.7.1-rapidpro-7.4.2
 ----------
 * Fix: WhatsApp cloud connect behavior
