@@ -1,3 +1,7 @@
+1.7.4-rapidpro-7.4.2
+----------
+* Update rp-version to fix django_url error
+
 1.7.3-rapidpro-7.4.2
 ----------
 * Fix: WhatsApp Cloud Connect
