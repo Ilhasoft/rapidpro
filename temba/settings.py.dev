@@ -120,9 +120,8 @@ STATIC_URL = "/sitestatic/"
 CONTACT_IMPORT_MAX_RECORDS = 25_000
 CONTACT_IMPORT_BATCH_SIZE = 100
 
-# ---------------------------------------------------------------------------------------
-# CSRF
-# ---------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------
+# # CSRF Trusteds orgins
+# ----------------------------------------------------------------------------------------
 
-CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
-CSRF_ALLOWED_ORIGINS = env("CSRF_ALLOWED_ORIGINS")
+CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", ["https://rapidpro-dev.ilhasoft.mobi"])
