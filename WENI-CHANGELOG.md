@@ -1,3 +1,7 @@
+1.7.5-rapidpro-7.4.2
+----------
+* Remove Facebook login redirect
+
 1.7.4-rapidpro-7.4.2
 ----------
 * Update rp-version to fix django_url error
