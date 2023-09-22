@@ -19,10 +19,10 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError, models, transaction
 from django.db.models import Count, F, Max, Q, Sum, Value
-from django.db.models.functions import Concat
+from django.db.models.functions import Concat, Lower
 from django.db.models.functions.text import Upper
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from temba import mailroom
 from temba.assets.models import register_asset_store
@@ -673,7 +673,7 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
     fields = JSONField(null=True)
 
     status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
-
+    current_flow = models.ForeignKey("flows.Flow", on_delete=models.PROTECT, null=True, db_index=False)
     ticket_count = models.IntegerField(default=0)
 
     # user that last modified this contact
@@ -698,6 +698,7 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
     UUID = "uuid"
     GROUPS = "groups"
     ID = "id"
+    SCHEME = "scheme"
 
     RESERVED_ATTRIBUTES = {
         ID,
@@ -706,6 +707,7 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
         LANGUAGE,
         GROUPS,
         UUID,
+        SCHEME,
         CREATED_ON,
         "created_by",
         "modified_by",
@@ -738,7 +740,11 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
         """
         Resolves a contact and URN from a channel interaction. Only used for relayer endpoints.
         """
-        response = mailroom.get_client().contact_resolve(channel.org_id, channel.id, urn)
+        try:
+            response = mailroom.get_client().contact_resolve(channel.org_id, channel.id, urn)
+        except mailroom.MailroomException as e:
+            raise ValueError(e.response.get("error"))
+
         contact = Contact.objects.get(id=response["contact"]["id"])
         contact_urn = ContactURN.objects.get(id=response["urn"]["id"])
         return contact, contact_urn
@@ -780,12 +786,10 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
         from temba.flows.models import FlowExit
         from temba.ivr.models import IVRCall
         from temba.mailroom.events import get_event_time
-        from temba.msgs.models import Msg
         from temba.tickets.models import TicketEvent
 
         msgs = (
             self.msgs.filter(created_on__gte=after, created_on__lt=before)
-            .exclude(visibility=Msg.VISIBILITY_DELETED)
             .order_by("-created_on")
             .select_related("channel", "contact_urn", "broadcast")
             .prefetch_related("channel_logs")[:limit]
@@ -1121,10 +1125,13 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
         Contact.bulk_change_status(user, [self], modifiers.Status.ACTIVE)
         self.refresh_from_db()
 
-    def release(self, user, *, full=True, immediately=False):
+    def release(self, user, *, immediately=False):
         """
-        Marks this contact for deletion
+        Releases this contact. Note that we clear all identifying data but don't hard delete the contact because we need
+        to expose deleted contacts over the API to allow external systems to know that contacts have been deleted.
         """
+        from .tasks import full_release_contact
+
         with transaction.atomic():
             # prep our urns for deletion so our old path creates a new urn
             for urn in self.urns.all():
@@ -1153,23 +1160,25 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
             self.modified_by = user
             self.save(update_fields=("name", "is_active", "fields", "modified_by", "modified_on"))
 
-        # if we are removing everything do so
-        if full:
-            if immediately:
-                self._full_release()
-            else:
-                from .tasks import full_release_contact
-
-                full_release_contact.delay(self.id)
+        # the hard work of removing everything this contact owns can be given to a celery task
+        if immediately:
+            self._full_release()
+        else:
+            on_transaction_commit(lambda: full_release_contact.delay(self.id))
 
     def _full_release(self):
+        """
+        Deletes everything owned by this contact
+        """
+
         with transaction.atomic():
-            self.ticket_events.all().delete()
-            self.tickets.all().delete()
+            # release our tickets
+            for ticket in self.tickets.all():
+                ticket.delete()
 
             # release our messages
             for msg in self.msgs.all():
-                msg.release()
+                msg.delete()
 
             # any urns currently owned by us
             for urn in self.urns.all():
@@ -1178,7 +1187,7 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
                 # these could include messages that began life
                 # on a different contact
                 for msg in urn.msgs.all():
-                    msg.release()
+                    msg.delete()
 
                 # same thing goes for connections
                 for conn in urn.connections.all():
@@ -1190,12 +1199,11 @@ class Contact(RequireUpdateFieldsMixin, TembaModel):
             for event in self.channel_events.all():  # pragma: needs cover
                 event.release()
 
-            # release our runs too
             for run in self.runs.all():
-                run.release()
+                run.delete(interrupt=False)  # don't try interrupting sessions that are about to be deleted
 
             for session in self.sessions.all():
-                session.release()
+                session.delete()
 
             for conn in self.connections.all():  # pragma: needs cover
                 conn.release()
@@ -1684,8 +1692,8 @@ class ContactGroup(TembaModel, DependencyMixin):
     def icon(self) -> str:
         return "atom" if self.is_dynamic else "users"
 
-    def get_icon(self):
-        return self.icon
+    def get_attrs(self):
+        return {"icon": self.icon}
 
     def update_query(self, query, reevaluate=True, parsed=None):
         """
@@ -1748,19 +1756,23 @@ class ContactGroup(TembaModel, DependencyMixin):
         dependents["campaign"] = self.campaigns.filter(is_active=True)
         return dependents
 
-    def release(self, user):
+    def release(self, user, immediate: bool = False):
         """
         Releases this group, removing all contacts and marking as inactive
         """
 
         from .tasks import release_group_task
 
+        self.name = f"deleted-{uuid4()}-{self.name}"[: self.MAX_NAME_LEN]
         self.is_active = False
         self.modified_by = user
-        self.save(update_fields=("is_active", "modified_by"))
+        self.save(update_fields=("name", "is_active", "modified_by", "modified_on"))
 
-        # do the hard work of actually clearing out contacts etc in a background task
-        on_transaction_commit(lambda: release_group_task.delay(self.id))
+        if immediate:
+            self._full_release()
+        else:
+            # do the hard work of actually clearing out contacts etc in a background task
+            on_transaction_commit(lambda: release_group_task.delay(self.id))
 
     def _full_release(self):
         from temba.campaigns.models import EventFire
@@ -1843,6 +1855,8 @@ class ContactGroup(TembaModel, DependencyMixin):
     class Meta:
         verbose_name = _("Group")
         verbose_name_plural = _("Groups")
+
+        constraints = [models.UniqueConstraint("org", Lower("name"), name="unique_contact_group_names")]
 
 
 class ContactGroupCount(SquashableModel):
@@ -1942,7 +1956,10 @@ class ExportContactsTask(BaseExportTask):
 
         # anon orgs also get an ID column that is just the PK
         if self.org.is_anon:
-            fields = [dict(label="ID", key=ContactField.KEY_ID, field=None, urn_scheme=None)] + fields
+            fields = [
+                dict(label="ID", key=ContactField.KEY_ID, field=None, urn_scheme=None),
+                dict(label="Scheme", key=Contact.SCHEME, field=None, urn_scheme=None),
+            ] + fields
 
         scheme_counts = dict()
         if not self.org.is_anon:
@@ -2078,6 +2095,9 @@ class ExportContactsTask(BaseExportTask):
             return contact.last_seen_on
         elif field["key"] == ContactField.KEY_ID:
             return str(contact.id)
+        elif field["key"] == Contact.SCHEME:
+            contact_urns = contact.get_urns()
+            return contact_urns[0].scheme if contact_urns else ""
         elif field["urn_scheme"] is not None:
             contact_urns = contact.get_urns()
             scheme_urns = []
@@ -2159,6 +2179,7 @@ class ContactImport(SmartModel):
         seen_uuids = set()
         seen_urns = set()
         num_records = 0
+
         for raw_row in data:
             row = cls._parse_row(raw_row, len(mappings))
             uuid, urns = cls._extract_uuid_and_urns(row, mappings)
@@ -2175,8 +2196,10 @@ class ContactImport(SmartModel):
                     )
                 seen_urns.add(urn)
 
+            if uuid or urns:  # if we have a UUID or URN on this row it's an importable record
+                num_records += 1
+
             # check if we exceed record limit
-            num_records += 1
             if num_records > ContactImport.MAX_RECORDS:
                 raise ValidationError(
                     _("Import files can contain a maximum of %(max)d records."),
@@ -2336,20 +2359,12 @@ class ContactImport(SmartModel):
 
         urns = []
         batches = []
-        record_num = 0
-        for row_batch in chunk_list(data, ContactImport.BATCH_SIZE):
-            batch_specs = []
-            batch_start = record_num
 
-            for raw_row in row_batch:
-                row = self._parse_row(raw_row, len(self.mappings), tz=self.org.timezone)
-                spec = self._row_to_spec(row)
-                batch_specs.append(spec)
-                record_num += 1
+        for batch_specs, batch_start, batch_end in self._batches_generator(data):
+            batches.append(self.batches.create(specs=batch_specs, record_start=batch_start, record_end=batch_end))
 
+            for spec in batch_specs:
                 urns.extend(spec.get("urns", []))
-
-            batches.append(self.batches.create(specs=batch_specs, record_start=batch_start, record_end=record_num))
 
         # set redis key which mailroom batch tasks can decrement to know when import has completed
         r = get_redis_connection()
@@ -2362,6 +2377,33 @@ class ContactImport(SmartModel):
         # flag org if the set of imported URNs looks suspicious
         if not self.org.is_verified() and self._detect_spamminess(urns):
             self.org.flag()
+
+    def _batches_generator(self, row_iter):
+        """
+        Generator which takes an iterable of raw rows and returns tuples of 1. a batches of specs, 2. the record index
+        at which the batch starts, 3. the record number at which the batch ends
+        """
+        record = 0
+        batch_specs = []
+        batch_start = record
+        row = 1  # 1-based rows like Excel uses
+
+        for raw_row in row_iter:
+            row_data = self._parse_row(raw_row, len(self.mappings), tz=self.org.timezone)
+            spec = self._row_to_spec(row_data)
+            row += 1
+            if spec:
+                spec["_import_row"] = row
+                batch_specs.append(spec)
+                record += 1
+
+            if len(batch_specs) == ContactImport.BATCH_SIZE:
+                yield batch_specs, batch_start, record
+                batch_specs = []
+                batch_start = record
+
+        if batch_specs:
+            yield batch_specs, batch_start, record
 
     def get_info(self):
         """
@@ -2454,6 +2496,10 @@ class ContactImport(SmartModel):
                     spec["fields"] = {}
                 key = mapping["key"]
                 spec["fields"][key] = value
+
+        # Make sure the row has a UUID or URNs
+        if not spec.get("uuid", "") and not spec.get("urns", []):
+            return {}
 
         return spec
 

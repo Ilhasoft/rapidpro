@@ -1,3 +1,277 @@
+v7.2.4
+----------
+ * Update stable versions in README
+
+v7.2.3
+----------
+ * Add empty versions of squashed migrations to be implemented in 7.3
+
+v7.2.2
+----------
+ * Updated translations from Transifex
+ * Fix searching on calls list page
+
+v7.2.1
+----------
+ * Update locale files
+
+v7.2.0
+----------
+ * Disallow PO export/import for archived flows because mailroom doesn't know about them
+ * Add campaigns section to new UI
+
+v7.1.82
+----------
+ * Update to latest flake8, black and isort
+
+v7.1.81
+----------
+ * Remove unused collect_metrics_task
+ * Bump dependencies
+
+v7.1.80
+----------
+ * Remove progress bar on facebook claim
+ * Replace old indexes based on flows_flowrun.is_active
+
+v7.1.79
+----------
+ * Remove progress dots for FBA and IG channel claim pages
+ * Actually drop exit_type, is_active and delete_reason on FlowRun
+ * Fix group name validation to include system groups
+
+v7.1.78
+----------
+ * Test with latest indexer and mailroom
+ * Stop using FlowRun.exit_type, is_active and delete_reason
+
+v7.1.77
+----------
+ * Tweak migration as Postgres won't let us drop function being used
+
+v7.1.76
+----------
+ * Update vonage deprecated methods
+
+v7.1.75
+----------
+ * Rework flowrun db triggers to use status rather than exit_type or is_active
+
+v7.1.74
+----------
+ * Allow archiving of flow messages
+ * Don't try interrupting session that is about to be deleted
+ * Tweak criteria for who can preview new interface
+
+v7.1.73
+----------
+ * Data migration to fix facebook contacts name
+
+v7.1.72
+----------
+ * Revert database trigger changes which stopped deleting path and exit_type counts on flowrun deletion
+
+v7.1.71
+----------
+ * Fix race condition in contact deletion
+ * Rework flowrun database triggers to look at delete_from_results instead of delete_reason
+
+v7.1.69
+----------
+ * Update to latest floweditor
+
+v7.1.68
+----------
+ * Add FlowRun.delete_from_results to replace delete_reason
+
+v7.1.67
+----------
+ * Drop no longer used Msg.delete_reason and delete_from_counts columns
+ * Update to Facebook Graph API v12
+
+v7.1.66
+----------
+ * Fix last reference to Msg.delete_reason in db triggers and stop writing that on deletion
+
+v7.1.65
+----------
+ * Rework msgs database triggers so we don't track counts for messages in archives
+
+v7.1.64
+----------
+ * API rate limits should be org scoped except for staff accounts
+ * Expose current flow on contact read page for all users
+ * Add deprecation text for restart_participants
+
+v7.1.63
+----------
+ * Fix documentation of contacts API endpoint
+ * Release URN channel events in data migration to fix deleted contacts with tickets
+ * Use original filename inside UUID folder to upload media files
+
+v7.1.62
+----------
+ * Tweak migration to only fully delete inactive contacts with tickets
+
+v7.1.61
+----------
+ * Add flow field to contacts API endpoint
+ * Add support to the audit_es command for dumping ES queries
+ * Add migration to make sure contacts which we failed to delete are really deleted
+ * Fix contact release with tickets having a broadcast
+
+v7.1.60
+----------
+ * Adjust WA message template warning to not be show for Twilio WhatsApp channels
+ * Add support to increase API rates per org
+
+v7.1.59
+----------
+ * Add migration to populate Contact.current_flow
+
+v7.1.58
+----------
+ * Restrict msg visibility changes on bulk actions endpoint
+
+v7.1.57
+----------
+ * Add sentry id for 500 page
+ * Display current flow on contact read page for beta users
+ * Add new msg visibility for msgs deleted by senders and allow deleted msgs to appear redacted in contact histories
+ * Contact imports should strip empty rows, missing a UUID or URNs
+
+v7.1.56
+----------
+ * Fix issue with sending to step_node
+ * Add missing languages for whatsapp templates
+ * Add migration to remove inactive contacts from user groups
+
+v7.1.55
+----------
+ * Fix horizontal scrolling in editor
+ * Add support to undo_footgun command to revert status changes
+
+v7.1.53
+----------
+ * Relayer syncing should ignore bad URNs that fail validation in mailroom
+ * Add unique constraint to ContactGroup to enforce name uniqueness within an org
+
+v7.1.52
+----------
+ * Fix scrolling select
+
+v7.1.51
+----------
+ * Merge pull request #3671 from nyaruka/ui-widget-fixes
+ * Fix select for slow clicks and removing rules in the editor
+
+v7.1.50
+----------
+ * Add migration to make contact group names unique within an organization
+ * Add cookie based path to opt in and out of new interface
+
+v7.1.49
+----------
+ * Update to Django 4
+
+v7.1.48
+----------
+ * Make IG channel beta gated
+ * Remove expires_on, parent_uuid and connection_id fields from FlowRun
+ * Add background flow options to campaign event dialog
+
+v7.1.47
+----------
+ * Make FlowSession.wait_resume_on_expire not-null
+
+v7.1.46
+----------
+ * Add migration to set wait_resume_on_expire on flow sessions
+ * Update task used to update run expirations to also update them on the session
+
+v7.1.45
+----------
+ * Make FlowSession.status non-null and add constraint to ensure waiting sessions have wait_started_on and wait_expires_on set
+
+v7.1.44
+----------
+ * Fix login via password managers
+ * Change gujarati code language to 'guj'
+ * Add instagram channel type
+ * Add interstitial when inactive contact search meets threshold
+
+v7.1.42
+----------
+ * Add missing migration
+
+v7.1.41
+----------
+ * Add Contact.current_flow
+
+v7.1.40
+----------
+ * Drop FlowRun.events and FlowPathRecentRun
+
+v7.1.39
+----------
+ * Include qrious.js script
+ * Add FlowSession.wait_resume_on_expire
+ * Add Msg.flow
+
+v7.1.38
+----------
+ * Replace uses of deprecated Django functions
+ * Remove crisp and librato analytics backends and add ConsoleBackend as example
+ * Data migration to populate FlowSession.wait_started_on and wait_expires_on
+
+v7.1.37
+----------
+ * Migration to remove recent run creation from db triggers
+ * Remove no longer used recent messages view and functionality on FlowPathRecentRun
+
+v7.1.36
+----------
+ * Add scheme column on contact exports for anon orgs
+ * Remove option to include router arguments in downloaded PO files
+ * Make loading of analytics backends dynamic based on setting of backend class paths
+
+v7.1.35
+----------
+ * Only display crisp support widget if brand supports it
+ * Do crisp chat widget embedding via analytics template hook
+
+v7.1.34
+----------
+ * Update to editor v1.16.1
+
+v7.1.33
+----------
+ * Add management to fix broken flows
+ * Use new recent contacts endpoint for editor
+
+v7.1.32
+----------
+ * Temporarily put crisp_website_id back in context
+
+v7.1.31
+----------
+ * Remove include_msgs option of flow result exports
+
+v7.1.30
+----------
+ * Update to latest flow editor
+
+v7.1.29
+----------
+ * Update to latest floweditor
+ * Add FlowSession.wait_expires_on
+ * Improve validation of flow expires values
+ * Remove segment and intercom integrations and rework librato and crisp into a pluggable analytics framwork
+
+v7.1.28
+----------
+ * Convert FlowRun.id and FlowSession.id to BIGINT
+
 v7.1.27
 ----------
  * Drop no longer used FlowRun.parent

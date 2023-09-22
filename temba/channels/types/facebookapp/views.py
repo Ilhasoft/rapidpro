@@ -4,7 +4,7 @@ from smartmin.views import SmartFormView, SmartModelActionView
 from django import forms
 from django.conf import settings
 from django.urls import reverse
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from temba.orgs.views import ModalMixin, OrgObjPermsMixin
 
@@ -50,7 +50,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                 if long_lived_auth_token == "":  # pragma: no cover
                     raise Exception("Empty user access token!")
 
-                url = f"https://graph.facebook.com/v7.0/{fb_user_id}/accounts"
+                url = f"https://graph.facebook.com/v12.0/{fb_user_id}/accounts"
                 params = {"access_token": long_lived_auth_token}
 
                 response = requests.get(url, params=params)
@@ -70,7 +70,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                 if page_access_token == "":  # pragma: no cover
                     raise Exception("Empty page access token!")
 
-                url = f"https://graph.facebook.com/v7.0/{page_id}/subscribed_apps"
+                url = f"https://graph.facebook.com/v12.0/{page_id}/subscribed_apps"
                 params = {"access_token": page_access_token}
                 data = {
                     "subscribed_fields": "messages,message_deliveries,messaging_optins,messaging_optouts,messaging_postbacks,message_reads,messaging_referrals,messaging_handovers"
@@ -193,7 +193,7 @@ class RefreshToken(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
         if long_lived_auth_token == "":  # pragma: no cover
             raise Exception("Empty user access token!")
 
-        url = f"https://graph.facebook.com/v7.0/{fb_user_id}/accounts"
+        url = f"https://graph.facebook.com/v12.0/{fb_user_id}/accounts"
         params = {"access_token": long_lived_auth_token}
 
         response = requests.get(url, params=params)
@@ -213,7 +213,7 @@ class RefreshToken(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
         if page_access_token == "":  # pragma: no cover
             raise Exception("Empty page access token!")
 
-        url = f"https://graph.facebook.com/v7.0/{page_id}/subscribed_apps"
+        url = f"https://graph.facebook.com/v12.0/{page_id}/subscribed_apps"
         params = {"access_token": page_access_token}
         data = {
             "subscribed_fields": "messages,message_deliveries,messaging_optins,messaging_optouts,messaging_postbacks,message_reads,messaging_referrals,messaging_handovers"

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from email.utils import parseaddr
 from functools import cmp_to_key
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import iso8601
 import pyotp
@@ -47,12 +47,11 @@ from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import resolve_url
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.utils.encoding import DjangoUnicodeDecodeError, force_text
+from django.utils.encoding import DjangoUnicodeDecodeError, force_str
 from django.utils.html import escape
-from django.utils.http import urlquote
 from django.utils.safestring import mark_safe
 from django.utils.text import slugify
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import View
 
@@ -221,7 +220,7 @@ class ModalMixin(SmartFormView):
         if "success_url" in kwargs:  # pragma: no cover
             context["success_url"] = kwargs["success_url"]
 
-        pairs = [urlquote(k) + "=" + urlquote(v) for k, v in self.request.GET.items() if k != "_"]
+        pairs = [quote(k) + "=" + quote(v) for k, v in self.request.GET.items() if k != "_"]
         context["action_url"] = self.request.path + "?" + ("&".join(pairs))
 
         return context
@@ -498,7 +497,7 @@ class LoginView(Login):
             verify_url = reverse("users.two_factor_verify")
             redirect_url = self.get_redirect_url()
             if redirect_url:
-                verify_url += f"?{self.redirect_field_name}={urlquote(redirect_url)}"
+                verify_url += f"?{self.redirect_field_name}={quote(redirect_url)}"
 
             return HttpResponseRedirect(verify_url)
 
@@ -1022,6 +1021,22 @@ class MenuMixin(OrgPermsMixin):
     def create_section(self, name):
         return {"id": slugify(name), "name": name, "type": "section"}
 
+    def create_modax_button(self, name, href, icon=None):
+        menu_item = {"id": slugify(name), "name": name, "type": "modax-button"}
+        if href:
+            if href[0] == "/":  # pragma: no cover
+                menu_item["href"] = href
+            elif self.has_org_perm(href):
+                menu_item["href"] = reverse(href)
+
+        if icon:  # pragma: no cover
+            menu_item["icon"] = icon
+
+        if "href" not in menu_item:  # pragma: no cover
+            return None
+
+        return menu_item
+
     def create_menu_item(
         self,
         menu_id=None,
@@ -1245,7 +1260,6 @@ class OrgCRUDL(SmartCRUDL):
                     self.create_menu_item(name=_("Messages"), icon="message-square", endpoint="msgs.msg_menu"),
                     self.create_menu_item(name=_("Contacts"), icon="contact", endpoint="contacts.contact_menu"),
                     self.create_menu_item(name=_("Flows"), icon="flow", endpoint="flows.flow_menu"),
-                    self.create_menu_item(name=_("Campaigns"), icon="campaign", endpoint="campaigns.campaigns_menu"),
                     self.create_menu_item(
                         name=_("Tickets"), icon="agent", endpoint="tickets.ticket_menu", href="tickets.ticket_list"
                     ),
@@ -1257,13 +1271,7 @@ class OrgCRUDL(SmartCRUDL):
                         "endpoint": f"{reverse('orgs.org_menu')}settings/",
                         "bottom": True,
                     },
-                    {
-                        "id": "support",
-                        "name": _("Support"),
-                        "icon": "help-circle",
-                        "bottom": True,
-                        "trigger": "showSupportWidget",
-                    },
+                    self.create_menu_item(name=_("Campaigns"), icon="campaign", endpoint="campaigns.campaign_menu"),
                 ]
 
                 # Other Plugins:
@@ -1283,7 +1291,7 @@ class OrgCRUDL(SmartCRUDL):
                 # check that it isn't too old
                 data = self.cleaned_data["import_file"].read()
                 try:
-                    json_data = json.loads(force_text(data))
+                    json_data = json.loads(force_str(data))
                 except (DjangoUnicodeDecodeError, ValueError):
                     raise ValidationError(_("This file is not a valid flow definition file."))
 
@@ -2894,7 +2902,7 @@ class OrgCRUDL(SmartCRUDL):
                 surveyors_group = Group.objects.get(name="Surveyors")
                 token = APIToken.get_or_create(org, user, role=surveyors_group)
 
-                org_name = urlquote(org.name)
+                org_name = quote(org.name)
 
                 return HttpResponseRedirect(
                     f"{self.get_success_url()}?org={org_name}&uuid={str(org.uuid)}&token={token}&user={username}"
@@ -3008,7 +3016,7 @@ class OrgCRUDL(SmartCRUDL):
 
             # setup user tracking before creating Org in super().post_save
             analytics.identify(user, brand=self.request.branding, org=obj)
-            analytics.track(user=user, event_name="temba.org_signup", properties=dict(org=obj.name))
+            analytics.track(user, "temba.org_signup", properties=dict(org=obj.name))
 
             obj = super().post_save(obj)
 
@@ -3650,7 +3658,7 @@ class OrgCRUDL(SmartCRUDL):
             return context
 
         def get(self, request, *args, **kwargs):
-            if request.is_ajax():
+            if self.request.META.get("HTTP_X_REQUESTED_WITH") == "XMLHttpRequest":
                 initial = self.request.GET.get("initial", "").split(",")
                 matches = []
 
@@ -3838,6 +3846,7 @@ class StripeHandler(View):  # pragma: no cover
 
     def post(self, request, *args, **kwargs):
         import stripe
+
         from temba.orgs.models import Org, TopUp
 
         # stripe delivers a JSON payload

@@ -5,10 +5,24 @@
 -block header
 -block footer
 
+-block auto-route
+  :javascript
+    function leaveNewInterface() {
+      document.cookie = "nav=1; expires=Fri, 31 Dec 9999 23:59:59 GMT; path=/;";
+      document.location = "/msg/inbox";
+    }
+
+-block interface-option
+  
+
 -block extra-style
   {{block.super}}
 
   :css
+    .shadow {
+      --tw-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 40px 0 rgba(0, 0, 0, 0.09);
+    }
+
     html {
       --color-text-dark: #555;
       --temba-textinput-font-size: 1.125rem;
@@ -26,7 +40,7 @@
     }
 
     temba-button {
-      --button-shadow: rgba(0, 0, 0, 0.15) 0px 3px 14px 0px, rgba(0, 0, 0, 0.25) 0px 1px 2px 0px;
+      --button-shadow: 0 0px 0px 1px rgba(0, 0, 0, 0.02), 0 1px 9px 0 rgba(0, 0, 0, 0.2);
     }
 
     temba-button.light {
@@ -64,7 +78,7 @@
       pointer-events: none;
     }
 
-    .spa-container.loading .loader {
+    .spa-container.loading .spa-loader {
       display: block;
     }
 
@@ -84,7 +98,7 @@
     .spa-content {
       display: flex;
       flex-direction: column;
-      height:100%;
+      flex-grow: 1;
       transition: opacity 200ms linear;
     }
 
@@ -223,6 +237,7 @@
     }
 
     .spa-container {
+      height:100%;
     }
 
     .folders {
@@ -246,12 +261,27 @@
       margin-left: 0 !important;
       margin-right: 0 !important;
     }
+
+
+    #crisp-chatbox [data-chat-status = "ongoing"] {
+      border-radius: 10px !important;
+    }
+
+    .spa-footer {
+      background: rgba(0,0,0,.05);
+      padding: 18px;
+      
+    }
+}
+
      
 -block full-page-script
   %script{src:"{{ STATIC_URL }}js/labels.js?4"}
+  %script{src:"{{ STATIC_URL }}js/urls.js"}
 
   :javascript
 
+    var static_url = "{{STATIC_URL}}";
     var pendingRequests = [];
     function fetchAjax(url, container, options) {
 
@@ -432,7 +462,16 @@
       var selection = window.location.pathname.split("/").filter(function(path){ return !!path});
       var menu = document.querySelector("temba-menu");
       menu.setSelection(selection);
+
+      menu.addEventListener("temba-button-clicked", function(event) {
+        showModax(event.detail.title, event.detail.href);
+      });
+  
+      window.addEventListener('resize', function() {
+        // menu.collapsed = !!window.matchMedia("(max-width: 800px)").matches
+      });
     });
+
 
     document.addEventListener("temba-pjax-complete", function() {
       hideLoading();
@@ -485,8 +524,6 @@
             "onSuccess": hideLoading,  
         });
       } else {
-
-        console.log("POSTING", window.lastFetch);
         evt.stopPropagation();
         evt.preventDefault();
         var formData = new FormData(formEle);
@@ -614,50 +651,14 @@
       });
     }
 
-    var legacyURLs = [
-      { old: /\/msg\/filter\/(.*)/,                        new: /\/messages\/labels\/(.*)\// },
-      { old: /\/contact\/read\/(.*)/,                      new: /\/contacts\/read\/(.*)/ },
-      { old: /\/contact\/filter\/(.*)/,                    new: /\/contacts\/groups\/(.*)\// },
-      { old: /\/flow\/editor\/(.*)\//,                     new: /\/flows\/editor\/(.*)/ },
-      { old: /\/flow\/filter\/(.*)\//,                     new: /\/flows\/(.*)\// },
-      { old: /\/ticket\/(.*)/,                             new: /\/tickets\/(.*)\// },
-      { old: /\/channels\/channellog\/read\/(.*)\/(.*)\//, new: /\/settings\/ch-(.*)\/log\/(.*)/ },
-      { old: /\/channels\/channellog\/(.*)\//,             new: /\/settings\/ch-(.*)\/log/ },
-      { old: /\/channels\/channel\/configuration\/(.*)\//, new: /\/settings\/ch-(.*)\/config/ },
-      { old: /\/channels\/channel\/read\/(.*)/,            new: /\/settings\/ch-(.*)\// },
-      { old: /\/channels\/types\/(.*)\/claim/,             new: /\/settings\/channel\/(.*)\// },
-      { old: /\/org\/manage_accounts\/(.*)/,               new: /\/settings\/logins/ },
-      { old: /\/user\/two_factor_disable\//,               new: /\/settings\/authentication\/2fa-disable\// }
-    ]
-
-    var toMap = /(msg|contact|flow|ticket|channels|org|user).*/;
-
-    function replaceMapping(path, reverse) {
-      var findDirection = reverse ? "new" : "old";
-      var replaceDirection = reverse ? "old" : "new";
-      for (var mapping of legacyURLs) {
-        var match = path.match(mapping[findDirection]);
-        console.log(path, mapping[findDirection], !!match);
-        if (match) {
-          
-          path = mapping[replaceDirection].source.replaceAll("\\/", "/");
-          for (var i=1; i<match.length; i++) {
-            path = path.replace("(.*)", match[i]);
-          }
-          path = path.replaceAll("(.*)", "");
-          console.log("=>", path);
-          return path;
-        }
-      }
-      return path;
-    }
+    var toMap = /(msg|contact|flow|ticket|channels|triggers|campaign|org|user).*/;
 
     function handleNoPath(event) {
       var details = event.detail;
       var menu = document.querySelector("temba-menu");
 
       var path = details.selection + "/" + details.path;
-      var mapped = replaceMapping(path, true);
+      var mapped = mapUrl(path, true);
 
       if (path != mapped){
         gotoURL(mapped, path);
@@ -680,7 +681,7 @@
 
       // migrate our old urls
       if (dest.path.match(toMap)) {
-        dest.path = replaceMapping(dest.path);
+        dest.path = mapUrl(dest.path);
       }
       gotoURL(dest.url, dest.path, !triggerEvents);
       menu.setFocusedItem(dest.path);
@@ -707,6 +708,14 @@
       }
     }
 
+    function showModax(header, endpoint) {
+      const modax = document.querySelector("temba-modax#shared-modax");
+      modax.header = header;
+      modax.endpoint = endpoint;
+      modax.headers = { "TEMBA-SPA": 1}
+      modax.open = true;
+    }
+
 
 -block refresh-fn
   :javascript
@@ -721,7 +730,6 @@
       });
     }
 
-
 -block temba-store
   %temba-store(
     completion="/mr/docs/{{ LANGUAGE_CODE }}/editor.json"
@@ -731,15 +739,22 @@
       
 -block page-container
 
+  %temba-modax#shared-modax
   .ajax-scripts
 
   .flex-col
     .flex.widget-container(style="height:100vh;")
       .folders       
         %temba-menu(style="height:100%" endpoint="{% url 'orgs.org_menu' %}" onchange="handleMenuChanged(event)" wait="true" -temba-no-path="handleNoPath(event)")
-      .flex-grow.text-lg.spa-container.p-5
-        .loader.hide.absolute
+      .flex-grow.text-lg.spa-container.flex.flex-col
+        .spa-loader.hide.absolute
           .wrapper(style="display:flex;z-index:100000;margin-top:2px;")
             %temba-loading(size=20 units=6)
-        .spa-content
+        .spa-content.p-5.overflow-y-auto.overflow-x-hidden
+
+        .spa-footer.text-center.text-gray-400.hide(style="margin-top:-60px;z-index:10000")
+          Copyright © 2012-2022 TextIt <a href="http://google.com">hey</a>
+
+      
+      
   

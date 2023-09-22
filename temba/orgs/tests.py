@@ -471,7 +471,7 @@ class UserTest(TembaTest):
 
     @override_settings(USER_LOCKOUT_TIMEOUT=1, USER_FAILED_LOGIN_LIMIT=3)
     def test_confirm_access(self):
-        confirm_url = reverse("users.confirm_access") + f"?next=/msg/inbox/"
+        confirm_url = reverse("users.confirm_access") + "?next=/msg/inbox/"
         failed_url = reverse("users.user_failed")
 
         # try to access before logging in
@@ -806,10 +806,24 @@ class OrgDeleteTest(TembaNonAtomicTest):
 
         # make some exports with logs
         export = ExportFlowResultsTask.create(
-            self.parent_org, self.admin, [parent_flow], [parent_field], True, True, (), ()
+            self.parent_org,
+            self.admin,
+            [parent_flow],
+            [parent_field],
+            responded_only=True,
+            extra_urns=(),
+            group_memberships=(),
         )
         Notification.export_finished(export)
-        ExportFlowResultsTask.create(self.child_org, self.admin, [child_flow], [child_field], True, True, (), ())
+        ExportFlowResultsTask.create(
+            self.child_org,
+            self.admin,
+            [child_flow],
+            [child_field],
+            responded_only=True,
+            extra_urns=(),
+            group_memberships=(),
+        )
 
         export = ExportContactsTask.create(self.parent_org, self.admin, group=parent_group)
         Notification.export_finished(export)
@@ -1192,7 +1206,8 @@ class OrgTest(TembaTest):
         self.assertEqual("pt-br", user_settings.language)
 
     @patch("temba.flows.models.FlowStart.async_start")
-    def test_org_flagging_and_suspending(self, mock_async_start):
+    @mock_mailroom
+    def test_org_flagging_and_suspending(self, mr_mocks, mock_async_start):
         self.login(self.admin)
 
         mark = self.create_contact("Mark", phone="+12065551212")
@@ -1265,8 +1280,7 @@ class OrgTest(TembaTest):
         self.org.save(update_fields=("is_suspended",))
 
         self.client.post(
-            reverse("flows.flow_broadcast", args=[flow.id]),
-            {"mode": "select", "omnibox": json.dumps({"id": mark.uuid, "name": mark.name, "type": "contact"})},
+            reverse("flows.flow_broadcast", args=[flow.id]), {"query": f'uuid="{mark.uuid}"', "type": "contact"}
         )
 
         mock_async_start.assert_called_once()
@@ -2948,6 +2962,14 @@ class OrgTest(TembaTest):
         self.assertEqual(self.org.get_limit(Org.LIMIT_GROUPS), 500)
         self.assertEqual(self.org.get_limit(Org.LIMIT_GLOBALS), 250)
 
+    def test_org_api_rates(self):
+        self.assertEqual(self.org.api_rates, {})
+
+        self.org.api_rates = {"v2.contacts": "10000/hour"}
+        self.org.save()
+
+        self.assertEqual(self.org.api_rates, {"v2.contacts": "10000/hour"})
+
     def test_sub_orgs_management(self):
         settings.BRANDING[settings.DEFAULT_BRAND]["tiers"] = dict(multi_org=1_000_000)
         self.org.reset_capabilities()
@@ -3183,7 +3205,7 @@ class OrgTest(TembaTest):
         sub_org.refresh_from_db()
         self.assertEqual("New Sub Org Name", sub_org.name)
 
-        self.assertEqual(response.url, f"/org/sub_orgs/")
+        self.assertEqual(response.url, "/org/sub_orgs/")
 
         # edit our sub org's details in a spa view
         response = self.client.post(
@@ -3346,19 +3368,19 @@ class OrgCRUDLTest(TembaTest, CRUDLTestMixin):
 
     def test_menu(self):
         self.login(self.admin)
-        self.assertMenu(reverse("orgs.org_menu"), 6)
+        self.assertMenu(reverse("orgs.org_menu"), 7)
         self.assertMenu(f"{reverse('orgs.org_menu')}settings/", 14)
 
         menu_url = reverse("orgs.org_menu")
         response = self.assertListFetch(menu_url, allow_viewers=True, allow_editors=True, allow_agents=True)
         menu = response.json()["results"]
-        self.assertEqual(6, len(menu))
+        self.assertEqual(7, len(menu))
 
-        # agents should only see tickets, settings, and support
+        # agents should only see tickets and settings
         self.login(self.agent)
         response = self.client.get(menu_url)
         menu = response.json()["results"]
-        self.assertEqual(3, len(menu))
+        self.assertEqual(2, len(menu))
 
     def test_workspace(self):
         response = self.assertListFetch(
@@ -4383,13 +4405,13 @@ class BulkExportTest(TembaTest):
         self.assertIn("Child Flow", group)
 
     def test_import_voice_flows_expiration_time(self):
-        # all imported voice flows should have a max expiration time of 15 min
+        # import file has invalid expires for an IVR flow so it should get the default (5)
         self.get_flow("ivr")
 
         self.assertEqual(Flow.objects.filter(flow_type=Flow.TYPE_VOICE).count(), 1)
         voice_flow = Flow.objects.get(flow_type=Flow.TYPE_VOICE)
         self.assertEqual(voice_flow.name, "IVR Flow")
-        self.assertEqual(voice_flow.expires_after_minutes, 15)
+        self.assertEqual(voice_flow.expires_after_minutes, 5)
 
     def test_import(self):
 
@@ -4897,7 +4919,10 @@ class BulkExportTest(TembaTest):
         # and our objects should have the same names as before
         self.assertEqual("Confirm Appointment", Flow.objects.get(pk=flow.pk).name)
         self.assertEqual("Appointment Schedule", Campaign.objects.filter(is_active=True).first().name)
-        self.assertEqual("Pending Appointments", ContactGroup.user_groups.get(pk=group.pk).name)
+
+        # except the group.. we don't mess with their names
+        self.assertFalse(ContactGroup.user_groups.filter(name="Pending Appointments").exists())
+        self.assertTrue(ContactGroup.user_groups.filter(name="A new group").exists())
 
         # let's rename our objects again
         flow.name = "A new name"
@@ -4909,7 +4934,7 @@ class BulkExportTest(TembaTest):
         group.name = "A new group"
         group.save(update_fields=("name",))
 
-        # now import the same import but pretend its from a different site
+        # now import the same import but pretend it's from a different site
         self.org.import_app(exported, self.admin, site="http://temba.io")
 
         # the newly named objects won't get updated in this case and we'll create new ones instead
