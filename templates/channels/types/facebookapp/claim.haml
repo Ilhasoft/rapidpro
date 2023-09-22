@@ -30,7 +30,6 @@
 
     %form#claim-form(style="display:none;" method="POST" action="{{ claim_url }}")
       {% csrf_token %}
-      %input#fb-user-id(type="text" name="fb_user_id")
       %input#user-access-token(type="text" name="user_access_token")
       %input#page-id(type="text" name="page_id")
       %input#page-name(type="text" name="page_name")
@@ -61,6 +60,7 @@
         }
     {% endlessblock %}
 
+
 -block extra-script
   {{ block.super }}
 
@@ -79,7 +79,6 @@
         xfbml      : true,
         version    : 'v12.0'
       });
-    };
 
 
     (function(d, s, id) {

@@ -248,6 +248,7 @@ class Command(BaseCommand):
                     created_on=self.db_begins_on,
                     created_by=superuser,
                     modified_by=superuser,
+                    is_anon=(o % 2 != 0),  # org 1 non-anon, org 2 anon etc
                 )
             )
         Org.objects.bulk_create(orgs)
@@ -395,7 +396,7 @@ class Command(BaseCommand):
             user = org.cache["users"][0]
             for g in GROUPS:
                 if g["query"]:
-                    group = ContactGroup.create_dynamic(org, user, g["name"], g["query"], evaluate=False)
+                    group = ContactGroup.create_smart(org, user, g["name"], g["query"], evaluate=False)
                 else:
                     group = ContactGroup.create_static(org, user, g["name"])
                 group.member = g["member"]
