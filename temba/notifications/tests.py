@@ -204,7 +204,6 @@ class NotificationTest(TembaTest):
             flows=[flow1, flow2],
             contact_fields=(),
             responded_only=True,
-            include_msgs=True,
             extra_urns=(),
             group_memberships=(),
         )
@@ -334,7 +333,7 @@ class NotificationTest(TembaTest):
 
         # if a user visits the incident page, all incident notifications are now read
         self.login(self.editor)
-        self.client.get(f"/incident/")
+        self.client.get("/incident/")
 
         self.assertTrue(self.editor.notifications.get().is_seen)
         self.assertFalse(self.admin.notifications.get().is_seen)

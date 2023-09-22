@@ -487,6 +487,7 @@ class ClassifierReadSerializer(ReadSerializer):
 class ContactReadSerializer(ReadSerializer):
     name = serializers.SerializerMethodField()
     language = serializers.SerializerMethodField()
+    flow = fields.FlowField(source="current_flow")
     urns = serializers.SerializerMethodField()
     groups = serializers.SerializerMethodField()
     fields = serializers.SerializerMethodField("get_contact_fields")
@@ -539,6 +540,7 @@ class ContactReadSerializer(ReadSerializer):
             "urns",
             "groups",
             "fields",
+            "flow",
             "blocked",
             "stopped",
             "created_on",
@@ -758,7 +760,7 @@ class ContactGroupWriteSerializer(WriteSerializer):
     name = serializers.CharField(
         required=True,
         max_length=ContactGroup.MAX_NAME_LEN,
-        validators=[UniqueForOrgValidator(queryset=ContactGroup.user_groups.filter(is_active=True), ignore_case=True)],
+        validators=[UniqueForOrgValidator(queryset=ContactGroup.all_groups.filter(is_active=True), ignore_case=True)],
     )
 
     def validate_name(self, value):
@@ -877,7 +879,7 @@ class FlowReadSerializer(ReadSerializer):
         return self.FLOW_TYPES.get(obj.flow_type)
 
     def get_labels(self, obj):
-        return [{"uuid": l.uuid, "name": l.name} for l in obj.labels.all()]
+        return [{"uuid": lb.uuid, "name": lb.name} for lb in obj.labels.all()]
 
     def get_runs(self, obj):
         stats = obj.get_run_stats()
@@ -1183,10 +1185,9 @@ class MsgReadSerializer(ReadSerializer):
         Msg.STATUS_RESENT: "resent",
     }
     TYPES = {Msg.TYPE_INBOX: "inbox", Msg.TYPE_FLOW: "flow", Msg.TYPE_IVR: "ivr"}
-    VISIBILITIES = {
+    VISIBILITIES = {  # deleted messages should never be exposed over API
         Msg.VISIBILITY_VISIBLE: "visible",
         Msg.VISIBILITY_ARCHIVED: "archived",
-        Msg.VISIBILITY_DELETED: "deleted",
     }
 
     broadcast = serializers.SerializerMethodField()
@@ -1324,12 +1325,12 @@ class MsgBulkActionSerializer(WriteSerializer):
                 label.toggle_label(messages, add=False)
         else:
             for msg in messages:
-                if action == self.ARCHIVE:
+                if action == self.ARCHIVE and msg.visibility == Msg.VISIBILITY_VISIBLE:
                     msg.archive()
-                elif action == self.RESTORE:
+                elif action == self.RESTORE and msg.visibility == Msg.VISIBILITY_ARCHIVED:
                     msg.restore()
-                elif action == self.DELETE:
-                    msg.release()
+                elif action == self.DELETE and msg.visibility in (Msg.VISIBILITY_VISIBLE, Msg.VISIBILITY_ARCHIVED):
+                    msg.delete(soft=True)
 
         return BulkActionFailure(missing_message_ids) if missing_message_ids else None
 

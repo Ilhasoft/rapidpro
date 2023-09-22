@@ -31,9 +31,9 @@ from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonRespons
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.encoding import force_bytes, force_text
+from django.utils.encoding import force_bytes, force_str
 from django.utils.functional import cached_property
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 
 from temba.contacts.models import URN
@@ -256,11 +256,12 @@ def sync(request, channel_id):
                     urn = URN.from_tel(cmd["phone"])
                     try:
                         ChannelEvent.create_relayer_event(
-                            channel, urn, cmd["type"], date, extra=dict(duration=duration)
+                            channel, urn, cmd["type"], date, extra={"duration": duration}
                         )
                     except ValueError:
                         # in some cases Android passes us invalid URNs, in those cases just ignore them
                         pass
+
                     unique_calls.add(call_tuple)
                 handled = True
 
@@ -324,7 +325,7 @@ def register(request):
     if request.method != "POST":
         return HttpResponse(status=500, content=_("POST Required"))
 
-    client_payload = json.loads(force_text(request.body))
+    client_payload = json.loads(force_str(request.body))
     cmds = client_payload["cmds"]
 
     try:
@@ -1447,7 +1448,7 @@ class ChannelEventCRUDL(SmartCRUDL):
     class Calls(InboxView):
         title = _("Calls")
         fields = ("contact", "event_type", "channel", "occurred_on")
-        default_order = "-occurred_on"
+        default_order = ("-occurred_on",)
         search_fields = ("contact__urns__path__icontains", "contact__name__icontains")
         system_label = SystemLabel.TYPE_CALLS
         select_related = ("contact", "channel")

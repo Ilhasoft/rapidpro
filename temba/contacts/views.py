@@ -1,6 +1,7 @@
 import logging
 from collections import OrderedDict
 from datetime import timedelta
+from urllib.parse import quote_plus
 
 import iso8601
 from smartmin.views import (
@@ -29,8 +30,8 @@ from django.http import Http404, HttpResponse, HttpResponseNotFound, HttpRespons
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.functional import cached_property
-from django.utils.http import is_safe_url, urlquote_plus
-from django.utils.translation import ugettext_lazy as _
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.translation import gettext_lazy as _
 from django.views import View
 
 from temba.archives.models import Archive
@@ -133,7 +134,7 @@ class ContactGroupForm(forms.ModelForm):
         name = self.cleaned_data["name"].strip()
 
         # make sure the name isn't already taken
-        existing = ContactGroup.get_user_group_by_name(self.org, name)
+        existing = ContactGroup.all_groups.filter(org=self.org, is_active=True, name__iexact=name).first()
         if existing and self.instance != existing:
             raise forms.ValidationError(_("Name is used by another group"))
 
@@ -214,8 +215,8 @@ class ContactListView(SpaMixin, OrgPermsMixin, BulkActionMixin, SmartListView):
         return ContactGroup.all_groups.get(org=self.request.user.get_org(), group_type=self.system_group)
 
     def derive_export_url(self):
-        search = urlquote_plus(self.request.GET.get("search", ""))
-        redirect = urlquote_plus(self.request.get_full_path())
+        search = quote_plus(self.request.GET.get("search", ""))
+        redirect = quote_plus(self.request.get_full_path())
         return "%s?g=%s&s=%s&redirect=%s" % (
             reverse("contacts.contact_export"),
             self.group.uuid,
@@ -650,7 +651,7 @@ class ContactCRUDL(SmartCRUDL):
             group_uuid = self.request.GET.get("g")
             search = self.request.GET.get("s")
             redirect = self.request.GET.get("redirect")
-            if redirect and not is_safe_url(redirect, self.request.get_host()):
+            if redirect and not url_has_allowed_host_and_scheme(redirect, self.request.get_host()):
                 redirect = None
 
             return group_uuid, search, redirect
@@ -750,6 +751,7 @@ class ContactCRUDL(SmartCRUDL):
     class Read(SpaMixin, OrgObjPermsMixin, SmartReadView):
         slug_url_kwarg = "uuid"
         fields = ("name",)
+        select_related = ("current_flow",)
 
         def derive_title(self):
             return self.object.get_display()
@@ -1071,6 +1073,7 @@ class ContactCRUDL(SmartCRUDL):
                     "primary_urn_formatted": primary_urn,
                 }
                 contact_json["created_on"] = org.format_datetime(contact.created_on, show_time=False)
+                contact_json["last_seen_on"] = org.format_datetime(contact.last_seen_on, show_time=False)
 
                 json_contacts.append(contact_json)
             summary["sample"] = json_contacts
@@ -1109,7 +1112,7 @@ class ContactCRUDL(SmartCRUDL):
                                 id="create-smartgroup",
                                 title=_("Create Smart Group"),
                                 modax=_("Create Smart Group"),
-                                href=f"{reverse('contacts.contactgroup_create')}?search={urlquote_plus(search)}",
+                                href=f"{reverse('contacts.contactgroup_create')}?search={quote_plus(search)}",
                             )
                         )
                 except SearchException:  # pragma: no cover
@@ -1285,6 +1288,9 @@ class ContactCRUDL(SmartCRUDL):
 
         def get_object_org(self):
             return self.group.org
+
+        def derive_title(self):
+            return self.group.name
 
         def derive_group(self):
             try:
@@ -1866,7 +1872,7 @@ class ContactFieldCRUDL(SmartCRUDL):
                 field_count = ContactField.user_fields.count_active_for_org(org=self.org)
                 if field_count >= org_active_fields_limit:
                     raise forms.ValidationError(
-                        _(f"Cannot create a new field as limit is %(limit)s."),
+                        _("Cannot create a new field as limit is %(limit)s."),
                         params={"limit": org_active_fields_limit},
                     )
 

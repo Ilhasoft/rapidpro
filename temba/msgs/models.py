@@ -16,11 +16,11 @@ from django.db import models
 from django.db.models import Prefetch, Q, Sum
 from django.db.models.functions import Upper
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from temba import mailroom
 from temba.assets.models import register_asset_store
-from temba.channels.models import Channel, ChannelEvent, ChannelLog
+from temba.channels.models import Channel, ChannelEvent
 from temba.contacts.models import URN, Contact, ContactGroup, ContactURN
 from temba.orgs.models import DependencyMixin, Org, TopUp
 from temba.schedules.models import Schedule
@@ -201,7 +201,7 @@ class Broadcast(models.Model):
             child.release()
 
         for msg in self.msgs.all():
-            msg.release()
+            msg.delete()
 
         BroadcastMsgCount.objects.filter(broadcast=self).delete()
 
@@ -320,11 +320,13 @@ class Msg(models.Model):
 
     VISIBILITY_VISIBLE = "V"
     VISIBILITY_ARCHIVED = "A"
-    VISIBILITY_DELETED = "D"
+    VISIBILITY_DELETED_BY_USER = "D"
+    VISIBILITY_DELETED_BY_SENDER = "X"
     VISIBILITY_CHOICES = (
         (VISIBILITY_VISIBLE, "Visible"),
         (VISIBILITY_ARCHIVED, "Archived"),
-        (VISIBILITY_DELETED, "Deleted"),
+        (VISIBILITY_DELETED_BY_USER, "Deleted by user"),
+        (VISIBILITY_DELETED_BY_SENDER, "Deleted by sender"),
     )
 
     DIRECTION_IN = "I"
@@ -369,7 +371,8 @@ class Msg(models.Model):
     channel = models.ForeignKey(Channel, on_delete=models.PROTECT, null=True, related_name="msgs")
     contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name="msgs", db_index=False)
     contact_urn = models.ForeignKey(ContactURN, on_delete=models.PROTECT, null=True, related_name="msgs")
-    broadcast = models.ForeignKey(Broadcast, on_delete=models.PROTECT, null=True, blank=True, related_name="msgs")
+    broadcast = models.ForeignKey(Broadcast, on_delete=models.PROTECT, null=True, related_name="msgs")
+    flow = models.ForeignKey("flows.Flow", on_delete=models.PROTECT, null=True, db_index=False)
 
     text = models.TextField()
     attachments = ArrayField(models.URLField(max_length=2048), null=True)
@@ -402,15 +405,6 @@ class Msg(models.Model):
     topup = models.ForeignKey(TopUp, null=True, blank=True, related_name="msgs", on_delete=models.PROTECT)
 
     metadata = JSONAsTextField(null=True, default=dict)
-
-    # can be set before deletion to indicate deletion by a user which should decrement from counts
-    delete_from_counts = models.BooleanField(null=True, default=False)
-
-    # TODO deprecated in favor of delete_from_counts
-    DELETE_FOR_ARCHIVE = "A"
-    DELETE_FOR_USER = "U"
-    DELETE_CHOICES = ((DELETE_FOR_ARCHIVE, "Archive delete"), (DELETE_FOR_USER, "User delete"))
-    delete_reason = models.CharField(null=True, max_length=1, choices=DELETE_CHOICES)
 
     @classmethod
     def get_messages(cls, org, is_archived=False, direction=None, msg_type=None):
@@ -461,7 +455,7 @@ class Msg(models.Model):
             "visibility": MsgReadSerializer.VISIBILITIES.get(self.visibility),
             "text": self.text,
             "attachments": [attachment.as_json() for attachment in Attachment.parse_all(self.attachments)],
-            "labels": [{"uuid": l.uuid, "name": l.name} for l in self.labels.all()],
+            "labels": [{"uuid": lb.uuid, "name": lb.name} for lb in self.labels.all()],
             "created_on": self.created_on.isoformat(),
             "sent_on": self.sent_on.isoformat() if self.sent_on else None,
         }
@@ -620,8 +614,7 @@ class Msg(models.Model):
         """
         Archives this message
         """
-        if self.direction != self.DIRECTION_IN:
-            raise ValueError("Can only archive incoming non-test messages")
+        assert self.direction == self.DIRECTION_IN and self.visibility == Msg.VISIBILITY_VISIBLE
 
         self.visibility = self.VISIBILITY_ARCHIVED
         self.save(update_fields=("visibility", "modified_on"))
@@ -643,26 +636,28 @@ class Msg(models.Model):
         """
         Restores (i.e. un-archives) this message
         """
-        if self.direction != self.DIRECTION_IN:  # pragma: needs cover
-            raise ValueError("Can only restore incoming non-test messages")
+        assert self.direction == self.DIRECTION_IN and self.visibility == Msg.VISIBILITY_ARCHIVED
 
         self.visibility = self.VISIBILITY_VISIBLE
         self.save(update_fields=("visibility", "modified_on"))
 
-    def release(self, delete_reason=DELETE_FOR_USER):
+    def delete(self, soft: bool = False):
         """
-        Releases (i.e. deletes) this message
+        Deletes this message. This can be soft if messages are being deleted from the UI, or hard in the case of
+        contact or org removal.
         """
+        if soft:
+            self.labels.clear()
 
-        for log in ChannelLog.objects.filter(msg=self):
-            log.release()
+            self.text = ""
+            self.attachments = []
+            self.visibility = Msg.VISIBILITY_DELETED_BY_USER
+            self.save(update_fields=("text", "attachments", "visibility"))
+        else:
+            for log in self.channel_logs.all():
+                log.release()
 
-        self.delete_reason = delete_reason
-        self.delete_from_counts = delete_reason == self.DELETE_FOR_USER
-        self.save(update_fields=("delete_reason", "delete_from_counts"))
-
-        # delete this object
-        self.delete()
+            super().delete()
 
     @classmethod
     def apply_action_label(cls, user, msgs, label):
@@ -685,7 +680,7 @@ class Msg(models.Model):
     @classmethod
     def apply_action_delete(cls, user, msgs):
         for msg in msgs:
-            msg.release()
+            msg.delete(soft=True)
 
     @classmethod
     def apply_action_resend(cls, user, msgs):
@@ -867,16 +862,16 @@ class SystemLabelCount(SquashableModel):
         return sql, (distinct_set.org_id, distinct_set.label_type, distinct_set.is_archived) * 2
 
     @classmethod
-    def get_totals(cls, org, is_archived=False):
+    def get_totals(cls, org):
         """
         Gets all system label counts by type for the given org
         """
-        counts = cls.objects.filter(org=org, is_archived=is_archived)
+        counts = cls.objects.filter(org=org, is_archived=False)
         counts = counts.values_list("label_type").annotate(count_sum=Sum("count"))
         counts_by_type = {c[0]: c[1] for c in counts}
 
         # for convenience, include all label types
-        return {l: counts_by_type.get(l, 0) for l, n in SystemLabel.TYPE_CHOICES}
+        return {lb: counts_by_type.get(lb, 0) for lb, n in SystemLabel.TYPE_CHOICES}
 
     class Meta:
         index_together = ("org", "label_type")
@@ -953,7 +948,7 @@ class Label(TembaModel, DependencyMixin):
         """
 
         labels_and_folders = list(Label.all_objects.filter(org=org, is_active=True).order_by(Upper("name")))
-        label_counts = LabelCount.get_totals([l for l in labels_and_folders if not l.is_folder()])
+        label_counts = LabelCount.get_totals([lb for lb in labels_and_folders if not lb.is_folder()])
 
         folder_nodes = {}
         all_nodes = []
@@ -999,8 +994,7 @@ class Label(TembaModel, DependencyMixin):
         """
         Returns the count of visible, non-test message tagged with this label
         """
-        if self.is_folder():
-            raise ValueError("Message counts are not tracked for user folders")
+        assert not self.is_folder()
 
         return LabelCount.get_totals([self])[self]
 
@@ -1014,8 +1008,7 @@ class Label(TembaModel, DependencyMixin):
         changed = set()
 
         for msg in msgs:
-            if msg.direction != Msg.DIRECTION_IN:
-                raise ValueError("Can only apply labels to incoming messages")
+            assert msg.direction == Msg.DIRECTION_IN
 
             # if we are adding the label and this message doesnt have it, add it
             if add:
@@ -1087,17 +1080,17 @@ class LabelCount(SquashableModel):
         return sql, (distinct_set.label_id, distinct_set.is_archived) * 2
 
     @classmethod
-    def get_totals(cls, labels, is_archived=False):
+    def get_totals(cls, labels):
         """
         Gets total counts for all the given labels
         """
         counts = (
-            cls.objects.filter(label__in=labels, is_archived=is_archived)
+            cls.objects.filter(label__in=labels, is_archived=False)
             .values_list("label_id")
             .annotate(count_sum=Sum("count"))
         )
         counts_by_label_id = {c[0]: c[1] for c in counts}
-        return {l: counts_by_label_id.get(l.id, 0) for l in labels}
+        return {lb: counts_by_label_id.get(lb.id, 0) for lb in labels}
 
 
 class MsgIterator:

@@ -33,7 +33,7 @@ from django.db.models import Count, F, Prefetch, Q, Sum
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.text import slugify
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from temba import mailroom
 from temba.archives.models import Archive
@@ -346,6 +346,8 @@ class Org(SmartModel):
 
     limits = JSONField(default=dict)
 
+    api_rates = JSONField(default=dict)
+
     is_anon = models.BooleanField(
         default=False, help_text=_("Whether this organization anonymizes the phone numbers of contacts within it")
     )
@@ -603,8 +605,8 @@ class Org(SmartModel):
 
     @classmethod
     def export_definitions(cls, site_link, components, include_fields=True, include_groups=True):
-        from temba.contacts.models import ContactField
         from temba.campaigns.models import Campaign
+        from temba.contacts.models import ContactField
         from temba.flows.models import Flow
         from temba.triggers.models import Trigger
 
@@ -696,14 +698,14 @@ class Org(SmartModel):
         return self.get_channel(Channel.ROLE_RECEIVE, scheme=scheme)
 
     def get_call_channel(self):
-        from temba.contacts.models import URN
         from temba.channels.models import Channel
+        from temba.contacts.models import URN
 
         return self.get_channel(Channel.ROLE_CALL, scheme=URN.TEL_SCHEME)
 
     def get_answer_channel(self):
-        from temba.contacts.models import URN
         from temba.channels.models import Channel
+        from temba.contacts.models import URN
 
         return self.get_channel(Channel.ROLE_ANSWER, scheme=URN.TEL_SCHEME)
 
@@ -1465,7 +1467,7 @@ class Org(SmartModel):
         Generates a dict of all exportable flows and campaigns for this org with each object's immediate dependencies
         """
         from temba.campaigns.models import Campaign, CampaignEvent
-        from temba.contacts.models import ContactGroup, ContactField
+        from temba.contacts.models import ContactField, ContactGroup
         from temba.flows.models import Flow
 
         campaign_prefetches = (
@@ -1560,8 +1562,8 @@ class Org(SmartModel):
         """
         Initializes an organization, creating all the dependent objects we need for it to work properly.
         """
-        from temba.middleware import BrandingMiddleware
         from temba.contacts.models import ContactField, ContactGroup
+        from temba.middleware import BrandingMiddleware
         from temba.tickets.models import Ticketer, Topic
 
         with transaction.atomic():
@@ -1692,7 +1694,7 @@ class Org(SmartModel):
         # might be a lot of messages, batch this
         for id_batch in chunk_list(msg_ids, 1000):
             for msg in self.msgs.filter(id__in=id_batch):
-                msg.release()
+                msg.delete()
 
         # our system label counts
         self.system_labels.all().delete()
@@ -1721,7 +1723,7 @@ class Org(SmartModel):
 
         # delete our contacts
         for contact in self.contacts.all():
-            contact.release(user, full=True, immediately=True)
+            contact.release(user, immediately=True)
             contact.delete()
 
         # delete all our URNs
@@ -1734,7 +1736,7 @@ class Org(SmartModel):
 
         # delete our groups
         for group in self.all_groups.all():
-            group.release(user)
+            group.release(user, immediate=True)
             group.delete()
 
         # delete our channels
