@@ -317,6 +317,7 @@ LOGGING = {
 
 # the name of our topup plan
 TOPUP_PLAN = "topups"
+WORKSPACE_PLAN = "workspace"
 
 # Default plan for new orgs
 DEFAULT_PLAN = TOPUP_PLAN
@@ -509,12 +510,12 @@ PERMISSIONS = {
         "update",
     ),
     "msgs.broadcast": ("api", "detail", "schedule", "schedule_list", "schedule_read", "send"),
-    "msgs.label": ("api", "create_folder", "delete_folder"),
+    "msgs.label": ("api", "delete_folder"),
     "orgs.topup": ("manage",),
     "policies.policy": ("admin", "history", "give_consent"),
     "request_logs.httplog": ("webhooks", "classifier", "ticketer"),
     "templates.template": ("api",),
-    "tickets.ticket": ("api", "assign", "assignee", "menu", "note"),
+    "tickets.ticket": ("api", "assign", "assignee", "menu", "note", "export_stats"),
     "tickets.ticketer": ("api", "connect", "configure"),
     "tickets.topic": ("api",),
     "triggers.trigger": ("archived", "type", "menu"),
@@ -1269,6 +1270,7 @@ ORG_LIMIT_DEFAULTS = {
     "globals": 250,
     "groups": 250,
     "labels": 250,
+    "teams": 50,
     "topics": 250,
 }
 

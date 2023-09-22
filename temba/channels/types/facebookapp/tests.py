@@ -26,13 +26,14 @@ class FacebookTypeTest(TembaTest):
             config={"auth_token": "09876543"},
         )
 
-    @override_settings(FACEBOOK_APPLICATION_ID="FB_APP_ID")
+    @override_settings(FACEBOOK_APPLICATION_ID="FB_APP_ID", FACEBOOK_APPLICATION_SECRET="FB_APP_SECRET")
     @patch("requests.post")
     @patch("requests.get")
     def test_claim(self, mock_get, mock_post):
         token = "x" * 200
         mock_get.side_effect = [
-            MockResponse(200, json.dumps({"data": {"user_id": "098765"}})),
+            MockResponse(200, json.dumps({"data": {"user_id": "098765", "expired_at": 100}})),
+            MockResponse(200, json.dumps({"access_token": f"long-life-user-{token}"})),
             MockResponse(
                 200,
                 json.dumps({"data": [{"name": "Temba", "id": "123456", "access_token": f"page-long-life-{token}"}]}),
@@ -72,9 +73,22 @@ class FacebookTypeTest(TembaTest):
 
         mock_get.assert_any_call(
             "https://graph.facebook.com/v12.0/debug_token",
-            params={"input_token": token, "access_token": token},
+            params={"input_token": token, "access_token": "FB_APP_ID|FB_APP_SECRET"},
         )
-        mock_get.assert_any_call("https://graph.facebook.com/v12.0/098765/accounts", params={"access_token": token})
+
+        mock_get.assert_any_call(
+            "https://graph.facebook.com/oauth/access_token",
+            params={
+                "grant_type": "fb_exchange_token",
+                "client_id": "FB_APP_ID",
+                "client_secret": "FB_APP_SECRET",
+                "fb_exchange_token": token,
+            },
+        )
+
+        mock_get.assert_any_call(
+            "https://graph.facebook.com/v12.0/098765/accounts", params={"access_token": f"long-life-user-{token}"}
+        )
 
         mock_post.assert_any_call(
             "https://graph.facebook.com/v12.0/123456/subscribed_apps",
@@ -194,7 +208,7 @@ class FacebookTypeTest(TembaTest):
         )
 
     def test_new_conversation_triggers(self):
-        flow = self.create_flow()
+        flow = self.create_flow("Test")
 
         with patch("requests.post") as mock_post:
             mock_post.return_value = MockResponse(200, json.dumps({"success": True}))

@@ -231,16 +231,11 @@ class ContactFieldField(TembaModelField):
     lookup_fields = ("key",)
 
     def to_representation(self, obj):
-        return {"key": obj.key, "label": obj.label}
-
-    def get_queryset(self):
-        manager = getattr(self.model, "all_fields")
-        return manager.filter(org=self.context["org"], is_active=True)
+        return {"key": obj.key, "label": obj.name}
 
 
 class ContactGroupField(TembaModelField):
     model = ContactGroup
-    model_manager = "user_groups"
     lookup_fields = ("uuid", "name")
     ignore_case_for_fields = ("name",)
 
@@ -256,6 +251,9 @@ class ContactGroupField(TembaModelField):
 
         return obj
 
+    def get_queryset(self):
+        return ContactGroup.get_groups(org=self.context["org"])
+
 
 class FlowField(TembaModelField):
     model = Flow
@@ -263,7 +261,6 @@ class FlowField(TembaModelField):
 
 class LabelField(TembaModelField):
     model = Label
-    model_manager = "label_objects"
     lookup_fields = ("uuid", "name")
     ignore_case_for_fields = ("name",)
 

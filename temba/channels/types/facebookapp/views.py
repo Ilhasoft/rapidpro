@@ -24,14 +24,41 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                 name = self.cleaned_data["page_name"]
                 page_id = self.cleaned_data["page_id"]
 
+                app_id = settings.FACEBOOK_APPLICATION_ID
+                app_secret = settings.FACEBOOK_APPLICATION_SECRET
+
                 url = "https://graph.facebook.com/v12.0/debug_token"
-                params = {"access_token": auth_token, "input_token": auth_token}
+                params = {"access_token": f"{app_id}|{app_secret}", "input_token": auth_token}
 
                 response = requests.get(url, params=params)
                 if response.status_code != 200:  # pragma: no cover
                     raise Exception("Failed to get user ID")
 
-                fb_user_id = response.json().get("data", dict()).get("user_id")
+                response_json = response.json()
+
+                fb_user_id = response_json.get("data", dict()).get("user_id")
+                expires_at = response_json.get("data", dict()).get("expires_at")
+
+                if expires_at != 0:
+                    # get user long lived access token
+                    url = "https://graph.facebook.com/oauth/access_token"
+                    params = {
+                        "grant_type": "fb_exchange_token",
+                        "client_id": app_id,
+                        "client_secret": app_secret,
+                        "fb_exchange_token": auth_token,
+                    }
+
+                    response = requests.get(url, params=params)
+                    if response.status_code != 200:  # pragma: no cover
+                        raise Exception("Failed to get a user long lived token")
+
+                    long_lived_auth_token = response.json().get("access_token", "")
+
+                    if long_lived_auth_token == "":  # pragma: no cover
+                        raise Exception("Empty user access token!")
+
+                    auth_token = long_lived_auth_token
 
                 url = f"https://graph.facebook.com/v12.0/{fb_user_id}/accounts"
                 params = {"access_token": auth_token}
@@ -68,7 +95,9 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                 self.cleaned_data["name"] = name
 
             except Exception:
-                raise forms.ValidationError(_("Sorry your Facebook channel could not be connected. Please try again"))
+                raise forms.ValidationError(
+                    _("Sorry your Facebook channel could not be connected. Please try again"), code="invalid"
+                )
 
             return self.cleaned_data
 
@@ -78,6 +107,12 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         context = super().get_context_data(**kwargs)
         context["claim_url"] = reverse("channels.types.facebookapp.claim")
         context["facebook_app_id"] = settings.FACEBOOK_APPLICATION_ID
+
+        claim_error = None
+        if context["form"].errors:
+            claim_error = context["form"].errors["__all__"][0]
+        context["claim_error"] = claim_error
+
         return context
 
     def form_valid(self, form):

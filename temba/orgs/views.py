@@ -59,7 +59,6 @@ from temba.api.models import APIToken, Resthook
 from temba.campaigns.models import Campaign
 from temba.channels.models import Channel
 from temba.classifiers.models import Classifier
-from temba.contacts.models import ContactGroupCount
 from temba.flows.models import Flow
 from temba.formax import FormaxMixin
 from temba.utils import analytics, get_anonymous_user, json, languages, str_to_bool
@@ -299,7 +298,7 @@ class IntegrationFormaxView(IntegrationViewMixin, ComponentFormMixin, SmartFormV
 
 
 class DependencyModalMixin(OrgObjPermsMixin):
-    dependent_order = {"campaign_event": "relative_to__label"}
+    dependent_order = {"campaign_event": ("relative_to__name",), "trigger": ("trigger_type", "created_on")}
     dependent_select_related = {"campaign_event": ("campaign", "relative_to")}
 
     def get_dependents(self, obj) -> dict:
@@ -307,9 +306,13 @@ class DependencyModalMixin(OrgObjPermsMixin):
         for type_key, type_qs in obj.get_dependents().items():
             # only include dependency types which we have at least one dependent of
             if type_qs.exists():
-                dependents[type_key] = type_qs.order_by(self.dependent_order.get(type_key, "name")).select_related(
-                    *self.dependent_select_related.get(type_key, ())
-                )
+                type_qs = type_qs.order_by(*self.dependent_order.get(type_key, ("name",)))
+
+                type_select_related = self.dependent_select_related.get(type_key, ())
+                if type_select_related:
+                    type_qs = type_qs.select_related(*type_select_related)
+
+                dependents[type_key] = type_qs
         return dependents
 
 
@@ -338,7 +341,12 @@ class DependencyDeleteModal(DependencyModalMixin, ModalMixin, SmartDeleteView):
     submit_button_name = _("Delete")
     template_name = "orgs/dependency_delete_modal.haml"
 
-    type_warnings = {"flow": _("these may not work as expected"), "campaign_event": _("these will be removed")}
+    # warnings for soft dependencies
+    type_warnings = {
+        "flow": _("these may not work as expected"),  # always soft
+        "campaign_event": _("these will be removed"),  # soft for fields and flows
+        "trigger": _("these will be removed"),  # soft for flows
+    }
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1010,6 +1018,11 @@ class SpaView(InferOrgMixin, OrgPermsMixin, SmartTemplateView):
     permission = "orgs.org_home"
     template_name = "spa_frame.haml"
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["is_spa"] = True
+        return context
+
     def has_permission(self, request, *args, **kwargs):
         return not request.user.is_anonymous and request.user.is_beta()
 
@@ -1018,16 +1031,22 @@ class MenuMixin(OrgPermsMixin):
     def create_divider(self):
         return {"type": "divider"}
 
-    def create_section(self, name):
-        return {"id": slugify(name), "name": name, "type": "section"}
+    def create_space(self):
+        return {"type": "space"}
 
-    def create_modax_button(self, name, href, icon=None):
+    def create_section(self, name, items=()):
+        return {"id": slugify(name), "name": name, "type": "section", "items": items}
+
+    def create_modax_button(self, name, href, icon=None, on_submit=None):
         menu_item = {"id": slugify(name), "name": name, "type": "modax-button"}
         if href:
             if href[0] == "/":  # pragma: no cover
                 menu_item["href"] = href
             elif self.has_org_perm(href):
                 menu_item["href"] = reverse(href)
+
+        if on_submit:
+            menu_item["on_submit"] = on_submit
 
         if icon:  # pragma: no cover
             menu_item["icon"] = icon
@@ -1078,14 +1097,17 @@ class MenuMixin(OrgPermsMixin):
             menu_item["items"] = items
 
         # only include the menu item if we have somewhere to go
-        if "href" not in menu_item and "endpoint" not in menu_item:
+        if "href" not in menu_item and "endpoint" not in menu_item and not inline:
             return None
 
         return menu_item
 
-    def render_to_response(self, context, **response_kwargs):
+    def get_menu(self):
         menu = [item for item in self.derive_menu() if item is not None]
-        return JsonResponse({"results": menu})
+        return menu
+
+    def render_to_response(self, context, **response_kwargs):
+        return JsonResponse({"results": self.get_menu()})
 
 
 class OrgCRUDL(SmartCRUDL):
@@ -1196,24 +1218,24 @@ class OrgCRUDL(SmartCRUDL):
                     )
                 )
 
-                menu.append(self.create_section(_("Channels")))
-
                 if self.has_org_perm("channels.channel_read"):
                     from temba.channels.views import get_channel_read_url
 
+                    items = []
                     channels = Channel.objects.filter(org=org, is_active=True, parent=None).order_by("-role")
                     for channel in channels:
                         icon = channel.get_type().icon.replace("icon-", "")
                         icon = icon.replace("power-cord", "box")
-                        menu.append(
+                        items.append(
                             self.create_menu_item(
-                                menu_id=f"ch-{channel.uuid}",
+                                menu_id=f"{channel.uuid}",
                                 name=channel.name,
                                 href=get_channel_read_url(channel),
                                 icon=icon,
                             )
                         )
 
+                    menu.append(self.create_menu_item(name=_("Channels"), items=items, inline=True))
                     menu.append(
                         self.create_menu_item(
                             menu_id="channel", name=_("Add Channel"), icon="channel", href="channels.channel_claim"
@@ -1221,21 +1243,21 @@ class OrgCRUDL(SmartCRUDL):
                     )
 
                 if self.has_org_perm("archives.archive_message"):
-                    menu.append(self.create_section(_("Archives")))
-                    menu.append(
+
+                    items = [
                         self.create_menu_item(
                             name=_("Messages"),
                             icon="message-square",
                             href=reverse("archives.archive_message"),
-                        )
-                    )
-                    menu.append(
+                        ),
                         self.create_menu_item(
                             name=_("Flow Runs"),
                             icon="flow",
                             href=reverse("archives.archive_run"),
-                        )
-                    )
+                        ),
+                    ]
+
+                    menu.append(self.create_menu_item(name=_("Archives"), items=items, inline=True))
 
                 child_orgs = Org.objects.filter(parent=org, is_active=True).order_by("name")
 
@@ -1260,10 +1282,11 @@ class OrgCRUDL(SmartCRUDL):
                     self.create_menu_item(name=_("Messages"), icon="message-square", endpoint="msgs.msg_menu"),
                     self.create_menu_item(name=_("Contacts"), icon="contact", endpoint="contacts.contact_menu"),
                     self.create_menu_item(name=_("Flows"), icon="flow", endpoint="flows.flow_menu"),
+                    self.create_menu_item(name=_("Triggers"), icon="radio", endpoint="triggers.trigger_menu"),
+                    self.create_menu_item(name=_("Campaigns"), icon="campaign", endpoint="campaigns.campaign_menu"),
                     self.create_menu_item(
                         name=_("Tickets"), icon="agent", endpoint="tickets.ticket_menu", href="tickets.ticket_list"
                     ),
-                    self.create_menu_item(name=_("Triggers"), icon="radio", endpoint="triggers.trigger_menu"),
                     {
                         "id": "settings",
                         "name": _("Settings"),
@@ -1271,7 +1294,6 @@ class OrgCRUDL(SmartCRUDL):
                         "endpoint": f"{reverse('orgs.org_menu')}settings/",
                         "bottom": True,
                     },
-                    self.create_menu_item(name=_("Campaigns"), icon="campaign", endpoint="campaigns.campaign_menu"),
                 ]
 
                 # Other Plugins:
@@ -2023,6 +2045,14 @@ class OrgCRUDL(SmartCRUDL):
             if org.is_active:
                 links.append(
                     dict(
+                        title=_("Service"),
+                        posterize=True,
+                        href=f'{reverse("orgs.org_service")}?organization={org.pk}&redirect_url={reverse("msgs.msg_inbox", args=[])}',
+                    )
+                )
+
+                links.append(
+                    dict(
                         title=_("Topups"),
                         style="button-primary",
                         href="%s?org=%d" % (reverse("orgs.topup_manage"), org.pk),
@@ -2446,7 +2476,7 @@ class OrgCRUDL(SmartCRUDL):
             return ""
 
         def get_contacts(self, obj):
-            return ContactGroupCount.total_for_org(obj)
+            return obj.get_contact_count()
 
         def get_credits(self, obj):
             credits = obj.get_credits_remaining()
@@ -3267,17 +3297,16 @@ class OrgCRUDL(SmartCRUDL):
             user = self.request.user
             org = user.get_org()
 
-            if self.has_org_perm("orgs.org_edit"):
-                formax.add_section("org", reverse("orgs.org_edit"), icon="icon-office")
+            shared_usage = org.parent and org.parent.has_shared_usage()
+            if not shared_usage:
+                # if we are on the topups plan, show our usual credits view
+                if org.plan == settings.TOPUP_PLAN:
+                    if self.has_org_perm("orgs.topup_list"):
+                        formax.add_section("topups", reverse("orgs.topup_list"), icon="icon-coins", action="link")
 
-            # if we are on the topups plan, show our usual credits view
-            if org.plan == settings.TOPUP_PLAN:
-                if self.has_org_perm("orgs.topup_list"):
-                    formax.add_section("topups", reverse("orgs.topup_list"), icon="icon-coins", action="link")
-
-            else:
-                if self.has_org_perm("orgs.org_plan"):  # pragma: needs cover
-                    formax.add_section("plan", reverse("orgs.org_plan"), icon="icon-credit", action="summary")
+                else:
+                    if self.has_org_perm("orgs.org_plan"):  # pragma: needs cover
+                        formax.add_section("plan", reverse("orgs.org_plan"), icon="icon-credit", action="summary")
 
             if self.has_org_perm("channels.channel_update"):
                 # get any channel thats not a delegate

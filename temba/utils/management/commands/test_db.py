@@ -49,10 +49,11 @@ ORG_NAMES = (
 
 # the users, channels, groups, labels and fields to create for each organization
 USERS = (
-    {"email": "admin%d@nyaruka.com", "role": "administrators"},
-    {"email": "editor%d@nyaruka.com", "role": "editors"},
-    {"email": "viewer%d@nyaruka.com", "role": "viewers"},
-    {"email": "surveyor%d@nyaruka.com", "role": "surveyors"},
+    {"email": "admin%(orgid)d@nyaruka.com", "role": "administrators", "first_name": "Adam", "last_name": "McAdmin"},
+    {"email": "editor%(orgid)d@nyaruka.com", "role": "editors", "first_name": "Eddy", "last_name": "McEditor"},
+    {"email": "viewer%(orgid)d@nyaruka.com", "role": "viewers", "first_name": "Veronica", "last_name": "McViews"},
+    {"email": "surveyor%(orgid)d@nyaruka.com", "role": "surveyors", "first_name": "", "last_name": ""},
+    {"email": "agent%(orgid)d@nyaruka.com", "role": "agents", "first_name": "Agnes", "last_name": "McAgent"},
 )
 CHANNELS = (
     {"name": "Android", "channel_type": "A", "scheme": "tel", "address": "1234"},
@@ -60,12 +61,12 @@ CHANNELS = (
     {"name": "Twitter", "channel_type": "TWT", "scheme": "twitter", "address": "my_handle"},
 )
 FIELDS = (
-    {"key": "gender", "label": "Gender", "value_type": ContactField.TYPE_TEXT},
-    {"key": "age", "label": "Age", "value_type": ContactField.TYPE_NUMBER},
-    {"key": "joined", "label": "Joined On", "value_type": ContactField.TYPE_DATETIME},
-    {"key": "ward", "label": "Ward", "value_type": ContactField.TYPE_WARD},
-    {"key": "district", "label": "District", "value_type": ContactField.TYPE_DISTRICT},
-    {"key": "state", "label": "State", "value_type": ContactField.TYPE_STATE},
+    {"key": "gender", "name": "Gender", "value_type": ContactField.TYPE_TEXT},
+    {"key": "age", "name": "Age", "value_type": ContactField.TYPE_NUMBER},
+    {"key": "joined", "name": "Joined On", "value_type": ContactField.TYPE_DATETIME},
+    {"key": "ward", "name": "Ward", "value_type": ContactField.TYPE_WARD},
+    {"key": "district", "name": "District", "value_type": ContactField.TYPE_DISTRICT},
+    {"key": "state", "name": "State", "value_type": ContactField.TYPE_STATE},
 )
 GROUPS = (
     {"name": "Reporters", "query": None, "member": 0.95},  # member is either a probability or callable
@@ -264,7 +265,9 @@ class Command(BaseCommand):
                 "users": [],
                 "fields": {},
                 "groups": [],
-                "system_groups": {g.group_type: g for g in ContactGroup.system_groups.filter(org=org)},
+                "status_groups": {
+                    g.group_type: g for g in org.groups.filter(group_type__in=ContactGroup.CONTACT_STATUS_TYPES)
+                },
             }
 
         self._log(self.style.SUCCESS("OK") + "\n")
@@ -279,7 +282,10 @@ class Command(BaseCommand):
         # create users for each org
         for org in orgs:
             for u in USERS:
-                user = User.objects.create_user(u["email"] % org.id, u["email"] % org.id, password)
+                email = u["email"] % {"orgid": org.id}
+                user = User.objects.create_user(
+                    email, email, password, first_name=u["first_name"], last_name=u["last_name"]
+                )
                 getattr(org, u["role"]).add(user)
                 user.set_org(org)
                 org.cache["users"].append(user)
@@ -373,10 +379,11 @@ class Command(BaseCommand):
         for org in orgs:
             user = org.cache["users"][0]
             for f in FIELDS:
-                field = ContactField.user_fields.create(
+                field = ContactField.objects.create(
                     org=org,
                     key=f["key"],
-                    label=f["label"],
+                    name=f["name"],
+                    is_system=False,
                     value_type=f["value_type"],
                     show_in_table=True,
                     created_by=user,
@@ -398,7 +405,7 @@ class Command(BaseCommand):
                 if g["query"]:
                     group = ContactGroup.create_smart(org, user, g["name"], g["query"], evaluate=False)
                 else:
-                    group = ContactGroup.create_static(org, user, g["name"])
+                    group = ContactGroup.create_manual(org, user, g["name"])
                 group.member = g["member"]
                 group.count = 0
                 org.cache["groups"].append(group)
@@ -414,7 +421,7 @@ class Command(BaseCommand):
         for org in orgs:
             user = org.cache["users"][0]
             for name in LABELS:
-                Label.label_objects.create(org=org, name=name, created_by=user, modified_by=user)
+                Label.objects.create(org=org, name=name, created_by=user, modified_by=user)
 
         self._log(self.style.SUCCESS("OK") + "\n")
 
@@ -441,13 +448,13 @@ class Command(BaseCommand):
         for org in orgs:
             user = org.cache["users"][0]
             for c in CAMPAIGNS:
-                group = ContactGroup.all_groups.get(org=org, name=c["group"])
+                group = org.groups.get(name=c["group"])
                 campaign = Campaign.objects.create(
                     name=c["name"], group=group, is_archived=False, org=org, created_by=user, modified_by=user
                 )
 
                 for e in c.get("events", []):
-                    field = ContactField.all_fields.get(org=org, key=e["offset_field"])
+                    field = ContactField.objects.get(org=org, key=e["offset_field"])
 
                     if "flow" in e:
                         flow = Flow.objects.get(org=org, name=e["flow"])
@@ -569,7 +576,7 @@ class Command(BaseCommand):
                     # work out which groups this contact belongs to
                     if c["is_active"]:
                         if c["status"] == Contact.STATUS_ACTIVE:
-                            c["groups"].append(org.cache["system_groups"][ContactGroup.TYPE_ACTIVE])
+                            c["groups"].append(org.cache["status_groups"][ContactGroup.TYPE_DB_ACTIVE])
 
                             # let each user group decide if it is taking this contact
                             for g in org.cache["groups"]:
@@ -577,9 +584,9 @@ class Command(BaseCommand):
                                     c["groups"].append(g)
 
                         elif c["status"] == Contact.STATUS_BLOCKED:
-                            c["groups"].append(org.cache["system_groups"][ContactGroup.TYPE_BLOCKED])
+                            c["groups"].append(org.cache["status_groups"][ContactGroup.TYPE_DB_BLOCKED])
                         elif c["status"] == Contact.STATUS_STOPPED:
-                            c["groups"].append(org.cache["system_groups"][ContactGroup.TYPE_STOPPED])
+                            c["groups"].append(org.cache["status_groups"][ContactGroup.TYPE_DB_STOPPED])
 
                     # track changes to group counts
                     for g in c["groups"]:
