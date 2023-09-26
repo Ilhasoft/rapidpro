@@ -1,5 +1,5 @@
 import slack_sdk
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from smartmin.views import SmartFormView
 from django.core.exceptions import ValidationError
 from ...models import Channel
