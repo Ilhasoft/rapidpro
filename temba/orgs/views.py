@@ -4,10 +4,8 @@ import random
 import smtplib
 import string
 from collections import OrderedDict
-from datetime import datetime, timedelta
-from decimal import Decimal
+from datetime import timedelta
 from email.utils import parseaddr
-from functools import cmp_to_key
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 import iso8601
@@ -41,7 +39,7 @@ from django.contrib.auth.views import LoginView as AuthLoginView
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError
-from django.db.models import ExpressionWrapper, F, IntegerField, Q, Sum
+from django.db.models import Q, Sum
 from django.forms import Form
 from django.http import Http404, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import resolve_url
@@ -53,7 +51,6 @@ from django.utils.safestring import mark_safe
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import View
 
 from temba.api.models import APIToken, Resthook
 from temba.campaigns.models import Campaign
@@ -61,7 +58,8 @@ from temba.channels.models import Channel
 from temba.classifiers.models import Classifier
 from temba.flows.models import Flow
 from temba.formax import FormaxMixin
-from temba.utils import analytics, get_anonymous_user, json, languages, str_to_bool
+from temba.settings_common import WORKSPACE_PLAN
+from temba.utils import analytics, get_anonymous_user, json, languages
 from temba.utils.email import is_valid_address, send_template_email
 from temba.utils.fields import (
     ArbitraryJsonChoiceField,
@@ -73,20 +71,16 @@ from temba.utils.fields import (
 )
 from temba.utils.http import http_headers
 from temba.utils.timezones import TimeZoneFormField
-from temba.utils.views import ComponentFormMixin, NonAtomicMixin, RequireRecentAuthMixin, SpaMixin
-
-from .models import (
-    BackupToken,
-    IntegrationType,
-    Invitation,
-    Org,
-    OrgCache,
-    OrgRole,
-    TopUp,
-    User,
-    get_stripe_credentials,
+from temba.utils.views import (
+    ComponentFormMixin,
+    ContentMenuMixin,
+    NonAtomicMixin,
+    RequireRecentAuthMixin,
+    SpaMixin,
+    StaffOnlyMixin,
 )
-from .tasks import apply_topups_task
+
+from .models import BackupToken, IntegrationType, Invitation, Org, OrgRole, User
 
 # session key for storing a two-factor enabled user's id once we've checked their password
 TWO_FACTOR_USER_SESSION_KEY = "_two_factor_user_id"
@@ -110,7 +104,7 @@ def check_login(request):
 
 class OrgPermsMixin:
     """
-    Get the organisation and the user within the inheriting view so that it be come easy to decide
+    Get the organization and the user within the inheriting view so that it be come easy to decide
     whether this user has a certain permission for that particular organization to perform the view's actions
     """
 
@@ -118,10 +112,7 @@ class OrgPermsMixin:
         return self.request.user
 
     def derive_org(self):
-        org = None
-        if not self.get_user().is_anonymous:
-            org = self.get_user().get_org()
-        return org
+        return self.request.org
 
     def has_org_perm(self, permission):
         if self.org:
@@ -137,7 +128,7 @@ class OrgPermsMixin:
         self.request = request
         self.org = self.derive_org()
 
-        if self.get_user().is_superuser:
+        if self.get_user().is_staff and self.org:
             return True
 
         if self.get_user().is_anonymous:
@@ -152,7 +143,7 @@ class OrgPermsMixin:
 
         # non admin authenticated users without orgs get the org chooser
         user = self.get_user()
-        if user.is_authenticated and not (user.is_superuser or user.is_staff):
+        if user.is_authenticated and not user.is_staff:
             if not self.derive_org():
                 return HttpResponseRedirect(reverse("orgs.org_choose"))
 
@@ -161,7 +152,7 @@ class OrgPermsMixin:
 
 class OrgFilterMixin:
     """
-    Simple mixin to filter a view's queryset by the user's org
+    Simple mixin to filter a view's queryset by the request org
     """
 
     def derive_queryset(self, *args, **kwargs):
@@ -170,26 +161,7 @@ class OrgFilterMixin:
         if not self.request.user.is_authenticated:
             return queryset.none()  # pragma: no cover
         else:
-            return queryset.filter(org=self.request.user.get_org())
-
-
-class AnonMixin(OrgPermsMixin):
-    """
-    Mixin that makes sure that anonymous orgs cannot add channels (have no permission if anon)
-    """
-
-    def has_permission(self, request, *args, **kwargs):
-        org = self.derive_org()
-
-        # can this user break anonymity? then we are fine
-        if self.get_user().has_perm("contacts.contact_break_anon"):
-            return True
-
-        # otherwise if this org is anon, no go
-        if not org or org.is_anon:
-            return False
-        else:
-            return super().has_permission(request, *args, **kwargs)
+            return queryset.filter(org=self.request.org)
 
 
 class OrgObjPermsMixin(OrgPermsMixin):
@@ -200,8 +172,7 @@ class OrgObjPermsMixin(OrgPermsMixin):
         has_org_perm = super().has_org_perm(codename)
 
         if has_org_perm:
-            user = self.get_user()
-            return user.get_org() == self.get_object_org()
+            return self.request.org == self.get_object_org()
 
         return False
 
@@ -209,13 +180,13 @@ class OrgObjPermsMixin(OrgPermsMixin):
         has_perm = super().has_permission(request, *args, **kwargs)
 
         if has_perm:
-            user = self.get_user()
+            user = self.request.user
 
             # user has global permission
             if user.has_perm(self.permission):
                 return True
 
-            return user.get_org() == self.get_object_org()
+            return self.request.org == self.get_object_org()
 
         return False
 
@@ -284,7 +255,7 @@ class IntegrationViewMixin(OrgPermsMixin):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["integration_type"] = self.integration_type
-        context["integration_connected"] = self.integration_type.is_connected(self.request.user.get_org())
+        context["integration_connected"] = self.integration_type.is_connected(self.request.org)
         return context
 
 
@@ -685,7 +656,7 @@ class InferOrgMixin:
         return r"^%s/%s/$" % (path, action)
 
     def get_object(self, *args, **kwargs):
-        return self.request.user.get_org()
+        return self.request.org
 
 
 class UserCRUDL(SmartCRUDL):
@@ -702,14 +673,18 @@ class UserCRUDL(SmartCRUDL):
         "account",
     )
 
-    class List(SmartListView):
-        fields = ("username", "orgs", "date_joined")
-        link_fields = ("username",)
+    class List(StaffOnlyMixin, SpaMixin, SmartListView):
+        fields = ("email", "name", "orgs", "date_joined")
         ordering = ("-date_joined",)
-        search_fields = ("username",)
+        search_fields = ("email", "first_name", "last_name")
+        filters = (("all", _("All")), ("beta", _("Beta")), ("staff", _("Staff")))
 
-        def get_username(self, user):
-            return mark_safe(f"<a href='{reverse('orgs.user_update', args=(user.id,))}'>{user.username}</a>")
+        @csrf_exempt
+        def dispatch(self, *args, **kwargs):
+            return super().dispatch(*args, **kwargs)
+
+        def get_email(self, user):
+            return user.email
 
         def get_orgs(self, user):
             orgs = user.get_orgs()[0:6]
@@ -724,9 +699,23 @@ class UserCRUDL(SmartCRUDL):
             return mark_safe(f"{org_links}{more}")
 
         def derive_queryset(self, **kwargs):
-            return super().derive_queryset(**kwargs).filter(is_active=True).exclude(id=get_anonymous_user().id)
+            qs = super().derive_queryset(**kwargs).filter(is_active=True).exclude(id=get_anonymous_user().id)
 
-    class Update(ComponentFormMixin, SmartUpdateView):
+            obj_filter = self.request.GET.get("filter")
+            if obj_filter == "beta":
+                qs = qs.filter(groups__name="Beta")
+            elif obj_filter == "staff":
+                qs = qs.filter(is_staff=True)
+
+            return qs
+
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            context["filter"] = self.request.GET.get("filter", "all")
+            context["filters"] = self.filters
+            return context
+
+    class Update(StaffOnlyMixin, SpaMixin, ComponentFormMixin, ContentMenuMixin, SmartUpdateView):
         class Form(UserUpdateForm):
             groups = forms.ModelMultipleChoiceField(
                 widget=SelectMultipleWidget(
@@ -745,15 +734,10 @@ class UserCRUDL(SmartCRUDL):
         success_message = "User updated successfully."
         title = "Update"
 
-        def get_gear_links(self):
-            return [
-                dict(
-                    id="user-delete",
-                    title=_("Delete"),
-                    modax=_("Delete User"),
-                    href=reverse("orgs.user_delete", args=[self.object.id]),
-                )
-            ]
+        def build_content_menu(self, menu):
+            menu.add_modax(
+                _("Delete"), "user-delete", reverse("orgs.user_delete", args=[self.object.id]), title=_("Delete User")
+            )
 
         def pre_save(self, obj):
             obj.username = obj.email
@@ -775,7 +759,7 @@ class UserCRUDL(SmartCRUDL):
 
             return obj
 
-    class Delete(ModalMixin, SmartDeleteView):
+    class Delete(StaffOnlyMixin, SpaMixin, ModalMixin, SmartDeleteView):
         fields = ("id",)
         permission = "orgs.user_update"
         submit_button_name = _("Delete")
@@ -790,13 +774,14 @@ class UserCRUDL(SmartCRUDL):
 
         def post(self, request, *args, **kwargs):
             user = self.get_object()
-            username = user.username
 
             brand = self.request.branding.get("brand")
             user.release(self.request.user, brand=brand)
 
-            messages.success(self.request, _(f"Deleted user {username}"))
-            return HttpResponseRedirect(reverse("orgs.user_list", args=()))
+            messages.info(request, self.derive_success_message())
+            response = HttpResponse()
+            response["Temba-Success"] = reverse("orgs.user_list")
+            return response
 
     class Forget(SmartFormView):
         class ForgetForm(forms.Form):
@@ -809,7 +794,7 @@ class UserCRUDL(SmartCRUDL):
         title = _("Password Recovery")
         form_class = ForgetForm
         permission = None
-        success_message = _("An Email has been sent to your account with further instructions.")
+        success_message = _("An email has been sent to your account with further instructions.")
         success_url = "@users.user_login"
         fields = ("email",)
 
@@ -928,13 +913,11 @@ class UserCRUDL(SmartCRUDL):
             if user.is_anonymous:
                 return False
 
-            org = user.get_org()
-
-            if org:
+            if request.org:
                 if not user.is_authenticated:  # pragma: needs cover
                     return False
 
-                if org.has_user(user):
+                if request.org.has_user(user):
                     return True
 
             return False  # pragma: needs cover
@@ -986,7 +969,7 @@ class UserCRUDL(SmartCRUDL):
             context = super().get_context_data(**kwargs)
 
             brand = self.request.branding["name"]
-            user = self.get_user()
+            user = self.request.user
             secret_url = pyotp.TOTP(user.settings.otp_secret).provisioning_uri(user.username, issuer_name=brand)
             context["secret_url"] = secret_url
             return context
@@ -1034,7 +1017,9 @@ class UserCRUDL(SmartCRUDL):
 
             return super().form_valid(form)
 
-    class TwoFactorTokens(SpaMixin, RequireRecentAuthMixin, InferOrgMixin, OrgPermsMixin, SmartTemplateView):
+    class TwoFactorTokens(
+        SpaMixin, RequireRecentAuthMixin, InferOrgMixin, ContentMenuMixin, OrgPermsMixin, SmartTemplateView
+    ):
         permission = "orgs.org_two_factor"
         title = _("Two-factor Authentication")
 
@@ -1051,14 +1036,13 @@ class UserCRUDL(SmartCRUDL):
 
             return super().get(request, *args, **kwargs)
 
-        def get_gear_links(self):
-            if self.is_spa():
-                return []
-            return [dict(title=_("Home"), style="button-light", href=reverse("orgs.org_home"))]
+        def build_content_menu(self, menu):
+            if not self.is_spa():
+                menu.add_link(_("Home"), reverse("orgs.org_home"))
 
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
-            context["backup_tokens"] = self.get_user().backup_tokens.order_by("id")
+            context["backup_tokens"] = self.request.user.backup_tokens.order_by("id")
             return context
 
     class Account(SpaMixin, FormaxMixin, InferOrgMixin, OrgPermsMixin, SmartReadView):
@@ -1081,24 +1065,62 @@ class SpaView(InferOrgMixin, OrgPermsMixin, SmartTemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context["org"] = self.request.org
         context["is_spa"] = True
+
+        dev_mode = getattr(settings, "EDITOR_DEV_MODE", False)
+        prefix = "/dev" if dev_mode else settings.STATIC_URL
+
+        # get our list of assets to incude
+        scripts = []
+        styles = []
+
+        if dev_mode:  # pragma: no cover
+            response = requests.get("http://localhost:3000/asset-manifest.json")
+            data = response.json()
+        else:
+            with open("node_modules/@nyaruka/flow-editor/build/asset-manifest.json") as json_file:
+                data = json.load(json_file)
+
+        for key, filename in data.get("files").items():
+
+            # tack on our prefix for dev mode
+            filename = prefix + filename
+
+            # ignore precache manifest
+            if key.startswith("precache-manifest") or key.startswith("service-worker"):
+                continue
+
+            # css files
+            if key.endswith(".css") and filename.endswith(".css"):
+                styles.append(filename)
+
+            # javascript
+            if key.endswith(".js") and filename.endswith(".js"):
+                scripts.append(filename)
+
+            context["scripts"] = scripts
+            context["styles"] = styles
+            context["dev_mode"] = dev_mode
+
         return context
 
     def has_permission(self, request, *args, **kwargs):
-        return not request.user.is_anonymous and request.user.is_staff
+        return not request.user.is_anonymous and request.user.is_beta
 
 
 class MenuMixin(OrgPermsMixin):
     def create_divider(self):
         return {"type": "divider"}
 
-    def create_space(self):
+    def create_space(self):  # pragma: no cover
         return {"type": "space"}
 
-    def create_section(self, name, items=()):
+    def create_section(self, name, items=()):  # pragma: no cover
         return {"id": slugify(name), "name": name, "type": "section", "items": items}
 
-    def create_modax_button(self, name, href, icon=None, on_submit=None):
+    # TODO: Decide whether we want to keep this at all
+    def create_modax_button(self, name, href, icon=None, on_submit=None):  # pragma: no cover
         menu_item = {"id": slugify(name), "name": name, "type": "modax-button"}
         if href:
             if href[0] == "/":  # pragma: no cover
@@ -1128,6 +1150,8 @@ class MenuMixin(OrgPermsMixin):
         perm=None,
         items=[],
         inline=False,
+        bottom=False,
+        verbose_name=None,
     ):
 
         if perm and not self.has_org_perm(perm):  # pragma: no cover
@@ -1135,11 +1159,13 @@ class MenuMixin(OrgPermsMixin):
 
         menu_item = {"name": name, "inline": inline}
         menu_item["id"] = menu_id if menu_id else slugify(name)
+        menu_item["bottom"] = bottom
+        menu_item["verbose_name"] = verbose_name
 
         if icon:
             menu_item["icon"] = icon
 
-        if count:  # pragma: no cover
+        if count is not None:
             menu_item["count"] = count
 
         if endpoint:
@@ -1175,6 +1201,7 @@ class OrgCRUDL(SmartCRUDL):
     actions = (
         "signup",
         "home",
+        "read",
         "token",
         "edit",
         "edit_sub_org",
@@ -1192,14 +1219,13 @@ class OrgCRUDL(SmartCRUDL):
         "update",
         "country",
         "languages",
-        "clear_cache",
         "twilio_connect",
         "twilio_account",
         "vonage_account",
         "vonage_connect",
         "plan",
         "sub_orgs",
-        "create_sub_org",
+        "create_child",
         "export",
         "import",
         "plivo_connect",
@@ -1208,7 +1234,6 @@ class OrgCRUDL(SmartCRUDL):
         "resthooks",
         "service",
         "surveyor",
-        "transfer_credits",
         "smtp_server",
         "workspace",
     )
@@ -1220,26 +1245,34 @@ class OrgCRUDL(SmartCRUDL):
         def derive_url_pattern(cls, path, action):
             return r"^%s/%s/((?P<submenu>[A-z]+)/)?$" % (path, action)
 
+        def has_permission(self, request, *args, **kwargs):
+            if self.request.user.is_staff:
+                return True
+            return super().has_permission(request, *args, **kwargs)
+
         def derive_menu(self):
 
             submenu = self.kwargs.get("submenu")
-            org = self.request.user.get_org()
+            self.org = self.derive_org()
 
             # how this menu is made up is a wip
             # TODO: remove pragma
             if submenu == "settings":  # pragma: no cover
-                has_classifiers = Classifier.objects.filter(org=org, is_active=True).exists()
-                menu = []
 
-                if self.has_org_perm("orgs.org_account"):
-                    menu.append(
-                        self.create_menu_item(name=_("Account"), icon="user", href=reverse("orgs.user_account"))
+                menu = []
+                menu.append(
+                    self.create_menu_item(
+                        menu_id="workspace", name=self.org.name, icon="layers", href="orgs.org_workspace"
                     )
+                )
 
                 if self.request.user.settings.two_factor_enabled:
                     menu.append(
                         self.create_menu_item(
-                            name=_("Security"), icon="shield", href=reverse("orgs.user_two_factor_tokens")
+                            menu_id="security",
+                            name=_("Security"),
+                            icon="shield",
+                            href=reverse("orgs.user_two_factor_tokens"),
                         )
                     )
                 else:
@@ -1252,38 +1285,21 @@ class OrgCRUDL(SmartCRUDL):
                         )
                     )
 
-                menu.append(self.create_section(_("Workspace")))
-                menu.append(self.create_menu_item(name=org.name, icon="layers", href="orgs.org_workspace"))
-                menu.append(self.create_menu_item(name=_("Logins"), icon="users", href="orgs.org_manage_accounts"))
-
-                if has_classifiers:
+                if self.has_org_perm("orgs.org_account"):
                     menu.append(
                         self.create_menu_item(
-                            name=_("Classifiers"), icon="git-pull-request", endpoint="classifiers.classifier_menu"
-                        )
-                    )
-                else:
-                    menu.append(
-                        self.create_menu_item(
-                            name=_("Classifiers"), icon="git-pull-request", href="classifiers.classifier_connect"
+                            menu_id="account", name=_("Account"), icon="user", href=reverse("orgs.user_account")
                         )
                     )
 
-                menu.append(self.create_menu_item(name=_("Zapier"), icon="zapier", href="orgs.org_resthooks"))
-
-                menu.append(
-                    self.create_menu_item(
-                        name=_("Integrations"),
-                        icon="cord",
-                        href="channels.channel_claim",
-                    )
-                )
+                menu.append(self.create_menu_item(name=_("Users"), icon="users", href="orgs.org_manage_accounts"))
+                menu.append(self.create_menu_item(name=_("Resthooks"), icon="cloud", href="orgs.org_resthooks"))
 
                 if self.has_org_perm("channels.channel_read"):
                     from temba.channels.views import get_channel_read_url
 
                     items = []
-                    channels = Channel.objects.filter(org=org, is_active=True, parent=None).order_by("-role")
+                    channels = Channel.objects.filter(org=self.org, is_active=True, parent=None).order_by("-role")
                     for channel in channels:
                         icon = channel.type.icon.replace("icon-", "")
                         icon = icon.replace("power-cord", "box")
@@ -1296,12 +1312,24 @@ class OrgCRUDL(SmartCRUDL):
                             )
                         )
 
-                    menu.append(self.create_menu_item(name=_("Channels"), items=items, inline=True))
-                    menu.append(
-                        self.create_menu_item(
-                            menu_id="channel", name=_("Add Channel"), icon="channel", href="channels.channel_claim"
+                    if len(items):
+                        menu.append(self.create_menu_item(name=_("Channels"), items=items, inline=True))
+
+                if self.has_org_perm("classifiers.classifier_read"):
+                    items = []
+                    classifiers = Classifier.objects.filter(org=self.org, is_active=True).order_by("-created_on")
+                    for classifier in classifiers:
+                        items.append(
+                            self.create_menu_item(
+                                menu_id=classifier.uuid,
+                                name=classifier.name,
+                                href=reverse("classifiers.classifier_read", args=[classifier.uuid]),
+                                icon=classifier.get_type().icon.replace("icon-", ""),
+                            )
                         )
-                    )
+
+                    if len(items):
+                        menu.append(self.create_menu_item(name=_("Classifiers"), items=items, inline=True))
 
                 if self.has_org_perm("archives.archive_message"):
 
@@ -1320,10 +1348,10 @@ class OrgCRUDL(SmartCRUDL):
 
                     menu.append(self.create_menu_item(name=_("Archives"), items=items, inline=True))
 
-                child_orgs = Org.objects.filter(parent=org, is_active=True).order_by("name")
+                child_orgs = Org.objects.filter(parent=self.org, is_active=True, plan=WORKSPACE_PLAN).order_by("name")
 
                 if child_orgs:
-                    menu.append(self.create_section(_("Child Workspaces")))
+                    menu.append(self.create_section(_("Workspaces")))
 
                 for child in child_orgs:
                     menu.append(
@@ -1337,42 +1365,74 @@ class OrgCRUDL(SmartCRUDL):
 
                 return menu
 
-            else:
-
+            if submenu == "staff":
                 return [
                     self.create_menu_item(
-                        menu_id="messages", name=_("Messages"), icon="message-square", endpoint="msgs.msg_menu"
+                        menu_id="workspaces",
+                        name=_("Workspaces"),
+                        icon="layers",
+                        href=reverse("orgs.org_manage"),
                     ),
                     self.create_menu_item(
-                        menu_id="contacts", name=_("Contacts"), icon="contact", endpoint="contacts.contact_menu"
+                        menu_id="users",
+                        name=_("Users"),
+                        icon="users",
+                        href=reverse("orgs.user_list"),
                     ),
-                    self.create_menu_item(menu_id="flows", name=_("Flows"), icon="flow", endpoint="flows.flow_menu"),
-                    self.create_menu_item(
-                        menu_id="triggers", name=_("Triggers"), icon="radio", endpoint="triggers.trigger_menu"
-                    ),
-                    self.create_menu_item(
-                        menu_id="campaigns", name=_("Campaigns"), icon="campaign", endpoint="campaigns.campaign_menu"
-                    ),
-                    self.create_menu_item(
-                        menu_id="tickets",
-                        name=_("Tickets"),
-                        icon="agent",
-                        endpoint="tickets.ticket_menu",
-                        href="tickets.ticket_list",
-                    ),
+                ]
+
+            menu = [
+                self.create_menu_item(
+                    menu_id="messages", name=_("Messages"), icon="message-square", endpoint="msgs.msg_menu"
+                ),
+                self.create_menu_item(
+                    menu_id="contacts", name=_("Contacts"), icon="contact", endpoint="contacts.contact_menu"
+                ),
+                self.create_menu_item(menu_id="flows", name=_("Flows"), icon="flow", endpoint="flows.flow_menu"),
+                self.create_menu_item(
+                    menu_id="triggers", name=_("Triggers"), icon="radio", endpoint="triggers.trigger_menu"
+                ),
+                self.create_menu_item(
+                    menu_id="campaigns", name=_("Campaigns"), icon="campaign", endpoint="campaigns.campaign_menu"
+                ),
+                self.create_menu_item(
+                    menu_id="tickets",
+                    name=_("Tickets"),
+                    icon="agent",
+                    endpoint="tickets.ticket_menu",
+                    href="tickets.ticket_list",
+                ),
+            ]
+
+            if self.org:
+                menu.append(
                     {
                         "id": "settings",
                         "name": _("Settings"),
                         "icon": "settings",
                         "endpoint": f"{reverse('orgs.org_menu')}settings/",
                         "bottom": True,
-                    },
-                ]
+                        "show_header": True,
+                    }
+                )
 
-                # Other Plugins:
-                # Wit.ai, Luis, Bothub, ZenDesk, DT One, Chatbase, Prometheus, Zapier/Resthooks
+            if self.request.user.is_staff:
+                menu.append(
+                    self.create_menu_item(
+                        menu_id="staff",
+                        name=_("Staff"),
+                        icon="hard-drive",
+                        endpoint=f"{reverse('orgs.org_menu')}staff/",
+                        bottom=True,
+                    )
+                )
 
-    class Import(NonAtomicMixin, InferOrgMixin, OrgPermsMixin, SmartFormView):
+            return menu
+
+            # Other Plugins:
+            # Wit.ai, Luis, Bothub, ZenDesk, DT One, Chatbase, Prometheus, Zapier/Resthooks
+
+    class Import(SpaMixin, NonAtomicMixin, InferOrgMixin, OrgPermsMixin, SmartFormView):
         class FlowImportForm(Form):
             import_file = forms.FileField(help_text=_("The import file"))
             update = forms.BooleanField(help_text=_("Update all flows and campaigns"), required=False)
@@ -1405,12 +1465,12 @@ class OrgCRUDL(SmartCRUDL):
 
         def get_form_kwargs(self):
             kwargs = super().get_form_kwargs()
-            kwargs["org"] = self.request.user.get_org()
+            kwargs["org"] = self.request.org
             return kwargs
 
         def form_valid(self, form):
             try:
-                org = self.request.user.get_org()
+                org = self.request.org
                 data = json.loads(form.cleaned_data["import_file"])
                 org.import_app(data, self.request.user, self.request.branding["link"])
             except Exception as e:
@@ -1514,7 +1574,7 @@ class OrgCRUDL(SmartCRUDL):
 
             return non_single_buckets, singles
 
-    class TwilioConnect(ComponentFormMixin, ModalMixin, InferOrgMixin, OrgPermsMixin, SmartFormView):
+    class TwilioConnect(SpaMixin, ComponentFormMixin, ModalMixin, InferOrgMixin, OrgPermsMixin, SmartFormView):
         class TwilioConnectForm(forms.Form):
             account_sid = forms.CharField(help_text=_("Your Twilio Account SID"), widget=InputWidget())
             account_token = forms.CharField(help_text=_("Your Twilio Account Token"), widget=InputWidget())
@@ -1618,7 +1678,7 @@ class OrgCRUDL(SmartCRUDL):
         def form_valid(self, form):
             disconnect = form.cleaned_data.get("disconnect", "false") == "true"
             user = self.request.user
-            org = user.get_org()
+            org = self.request.org
 
             if disconnect:
                 org.remove_vonage_account(user)
@@ -1641,7 +1701,7 @@ class OrgCRUDL(SmartCRUDL):
 
             return context
 
-    class VonageConnect(ModalMixin, InferOrgMixin, OrgPermsMixin, SmartFormView):
+    class VonageConnect(SpaMixin, ModalMixin, InferOrgMixin, OrgPermsMixin, SmartFormView):
         class Form(forms.Form):
             api_key = forms.CharField(help_text=_("Your Vonage API key"), widget=InputWidget())
             api_secret = forms.CharField(help_text=_("Your Vonage API secret"), widget=InputWidget())
@@ -1678,7 +1738,13 @@ class OrgCRUDL(SmartCRUDL):
             return HttpResponseRedirect(self.get_success_url())
 
     class Plan(InferOrgMixin, OrgPermsMixin, SmartReadView):
-        pass
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+
+            org = self.request.org
+            context["plan"] = org.plan
+            context["plan_end"] = org.format_datetime(org.plan_end, show_time=False) if org.plan_end else None
+            return context
 
     class WhatsappCloudConnect(InferOrgMixin, OrgPermsMixin, SmartFormView):
         class WhatsappCloudConnectForm(forms.Form):
@@ -1915,7 +1981,7 @@ class OrgCRUDL(SmartCRUDL):
         def form_valid(self, form):
             disconnect = form.cleaned_data.get("disconnect", "false") == "true"
             user = self.request.user
-            org = user.get_org()
+            org = self.request.org
 
             if disconnect:
                 org.remove_smtp_config(user)
@@ -1947,42 +2013,83 @@ class OrgCRUDL(SmartCRUDL):
             context["from_email_custom"] = from_email_custom
             return context
 
-    class Manage(SmartListView):
-        fields = ("plan", "name", "owner", "created_on", "service")
+    class Read(StaffOnlyMixin, SpaMixin, ContentMenuMixin, SmartReadView):
+        def build_content_menu(self, menu):
+            obj = self.get_object()
+            if not obj.is_active:
+                return
+
+            menu.add_modax(
+                _("Edit"),
+                "update-workspace",
+                reverse("orgs.org_update", args=[obj.id]),
+                title=_("Edit Workspace"),
+                as_button=True,
+            )
+
+            if obj.is_flagged:
+                menu.add_url_post(_("Unflag"), f"{reverse('orgs.org_update', args=[obj.id])}?action=unflag")
+            else:  # pragma: needs cover
+                menu.add_url_post(_("Flag"), f"{reverse('orgs.org_update', args=[obj.id])}?action=flag")
+
+            if not obj.is_verified():
+                menu.add_url_post(_("Verify"), f"{reverse('orgs.org_update', args=[obj.id])}?action=verify")
+
+            menu.add_modax(
+                _("Delete"),
+                "delete-org",
+                reverse("orgs.org_delete", args=[obj.id]),
+                title=_("Delete Workspace"),
+                disabled=True,
+            )
+
+            menu.new_group()
+            menu.add_url_post(
+                _("Service"),
+                f'{reverse("orgs.org_service")}?organization={obj.id}&redirect_url={reverse("msgs.msg_inbox", args=[])}',
+            )
+
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+
+            org = self.get_object()
+
+            users_roles = []
+            for role in OrgRole:
+                role_users = list(org.get_users(roles=[role]).values("id", "email"))
+                if role_users:
+                    users_roles.append(dict(role_display=role.display_plural, users=role_users))
+
+            context["users_roles"] = users_roles
+            workspaces = Org.objects.filter(parent=org, is_active=True).order_by("-created_on", "name")
+
+            children = {}
+            for workspace in workspaces:
+                plan_workspaces = children.get(workspace.plan, [])
+                plan_workspaces.append(workspace)
+                children[workspace.plan] = plan_workspaces
+
+            context["children"] = children
+
+            return context
+
+    class Manage(StaffOnlyMixin, SpaMixin, SmartListView):
+        fields = ("name", "owner", "created_on", "service")
         field_config = {"service": {"label": ""}}
         default_order = ("-credits", "-created_on")
         search_fields = ("name__icontains", "created_by__email__iexact", "config__icontains")
         link_fields = ("name", "owner")
-        title = _("Workspaces")
+        filters = (
+            ("all", _("All")),
+            ("anon", _("Anonymous")),
+            ("flagged", _("Flagged")),
+            ("suspended", _("Suspended")),
+            ("verified", _("Verified")),
+        )
 
-        def get_used(self, obj):
-            if not obj.credits:  # pragma: needs cover
-                used_pct = 0
-            else:
-                used_pct = round(100 * float(obj.get_credits_used()) / float(obj.credits))
-
-            used_class = "used-normal"
-            if used_pct >= 75:  # pragma: needs cover
-                used_class = "used-warning"
-            if used_pct >= 90:  # pragma: needs cover
-                used_class = "used-alert"
-            return mark_safe("<div class='used-pct %s'>%d%%</div>" % (used_class, used_pct))
-
-        def get_plan(self, obj):  # pragma: needs cover
-            if not obj.credits:  # pragma: needs cover
-                obj.credits = 0
-
-            if obj.plan == "topups":
-                return mark_safe(
-                    "<div class='num-credits inline-block'><a href='%s'>%s</a></div>%s"
-                    % (
-                        reverse("orgs.topup_manage") + "?org=%d" % obj.id,
-                        format(obj.credits, ",d"),
-                        self.get_used(obj),
-                    )
-                )
-
-            return mark_safe(f"<div class='plan-name'>{obj.plan}</div>")
+        @csrf_exempt
+        def dispatch(self, *args, **kwargs):
+            return super().dispatch(*args, **kwargs)
 
         def get_owner(self, obj):
             owner = obj.get_owner()
@@ -2000,43 +2107,34 @@ class OrgCRUDL(SmartCRUDL):
             )
 
         def get_name(self, obj):
-            flagged = '<span class="flagged">(Flagged)</span>' if obj.is_flagged else ""
-
-            return mark_safe(
-                f"<div class='org-name'>{flagged} {escape(obj.name)}</div><div class='org-timezone'>{obj.timezone}</div>"
-            )
+            return mark_safe(f"<div class='org-name'>{escape(obj.name)}</div><div class='org-plan'>{obj.plan}</div>")
 
         def derive_queryset(self, **kwargs):
-            queryset = super().derive_queryset(**kwargs)
-            queryset = queryset.filter(is_active=True)
+            qs = super().derive_queryset(**kwargs).filter(is_active=True)
 
             brands = self.request.branding.get("keys")
             if brands:
-                queryset = queryset.filter(brand__in=brands)
+                qs = qs.filter(brand__in=brands)
 
-            anon = self.request.GET.get("anon")
-            if anon:
-                queryset = queryset.filter(is_anon=str_to_bool(anon))
+            obj_filter = self.request.GET.get("filter")
+            if obj_filter == "anon":
+                qs = qs.filter(is_anon=True)
+            elif obj_filter == "flagged":
+                qs = qs.filter(is_flagged=True)
+            elif obj_filter == "suspended":
+                qs = qs.filter(is_suspended=True)
+            elif obj_filter == "verified":
+                # this is not my favorite
+                qs = qs.filter(config__icontains='"verified": True')
+            elif obj_filter and obj_filter != "all":
+                qs = qs.filter(Q(plan=obj_filter) | Q(name__icontains=obj_filter))
 
-            suspended = self.request.GET.get("suspended")
-            if suspended:
-                queryset = queryset.filter(is_suspended=str_to_bool(suspended))
-
-            flagged = self.request.GET.get("flagged")
-            if flagged:
-                queryset = queryset.filter(is_flagged=str_to_bool(flagged))
-
-            queryset = queryset.annotate(credits=Sum("topups__credits"))
-            queryset = queryset.annotate(paid=Sum("topups__price"))
-
-            return queryset
+            return qs.annotate(credits=Sum("topups__credits")).annotate(paid=Sum("topups__price"))
 
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
-            context["searches"] = ["Nyaruka"]
-            context["anon_query"] = str_to_bool(self.request.GET.get("anon"))
-            context["flagged_query"] = str_to_bool(self.request.GET.get("flagged"))
-            context["suspended_query"] = str_to_bool(self.request.GET.get("suspended"))
+            context["filter"] = self.request.GET.get("filter", "all")
+            context["filters"] = self.filters
             return context
 
         def lookup_field_link(self, context, field, obj):
@@ -2048,10 +2146,9 @@ class OrgCRUDL(SmartCRUDL):
         def get_created_by(self, obj):  # pragma: needs cover
             return "%s %s - %s" % (obj.created_by.first_name, obj.created_by.last_name, obj.created_by.email)
 
-    class Update(ComponentFormMixin, SmartUpdateView):
+    class Update(StaffOnlyMixin, SpaMixin, ModalMixin, ComponentFormMixin, SmartUpdateView):
         class Form(forms.ModelForm):
             parent = forms.IntegerField(required=False)
-            plan_end = forms.DateTimeField(required=False)
 
             def __init__(self, org, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -2079,7 +2176,12 @@ class OrgCRUDL(SmartCRUDL):
             def add_limits_fields(self, org: Org):
                 for limit_type in settings.ORG_LIMIT_DEFAULTS.keys():
                     initial = org.limits.get(limit_type)
-                    limit_field = forms.IntegerField(required=False, initial=initial)
+                    limit_field = forms.IntegerField(
+                        label=limit_type.capitalize(),
+                        required=False,
+                        initial=initial,
+                        widget=forms.TextInput(attrs={"placeholder": _("Limit")}),
+                    )
                     field_key = f"{limit_type}_limit"
 
                     self.fields.update(OrderedDict([(field_key, limit_field)]))
@@ -2090,17 +2192,19 @@ class OrgCRUDL(SmartCRUDL):
                 model = Org
                 fields = (
                     "name",
-                    "plan",
-                    "plan_end",
                     "brand",
                     "parent",
                     "is_anon",
                     "is_multi_user",
                     "is_multi_org",
                     "is_suspended",
+                    "is_flagged",
                 )
 
         form_class = Form
+
+        def derive_title(self):
+            return None
 
         def get_form_kwargs(self):
             kwargs = super().get_form_kwargs()
@@ -2108,85 +2212,7 @@ class OrgCRUDL(SmartCRUDL):
             return kwargs
 
         def get_success_url(self):
-            return reverse("orgs.org_update", args=[self.get_object().pk])
-
-        def get_gear_links(self):
-            links = []
-
-            org = self.get_object()
-
-            if org.is_active:
-                links.append(
-                    dict(
-                        title=_("Service"),
-                        posterize=True,
-                        href=f'{reverse("orgs.org_service")}?organization={org.pk}&redirect_url={reverse("msgs.msg_inbox", args=[])}',
-                    )
-                )
-
-                links.append(
-                    dict(
-                        title=_("Topups"),
-                        style="button-primary",
-                        href="%s?org=%d" % (reverse("orgs.topup_manage"), org.pk),
-                    )
-                )
-
-                if org.is_flagged:
-                    links.append(
-                        dict(
-                            title=_("Unflag"),
-                            style="button-secondary",
-                            posterize=True,
-                            href="%s?action=unflag" % reverse("orgs.org_update", args=[org.pk]),
-                        )
-                    )
-                else:  # pragma: needs cover
-                    links.append(
-                        dict(
-                            title=_("Flag"),
-                            style="button-secondary",
-                            posterize=True,
-                            href="%s?action=flag" % reverse("orgs.org_update", args=[org.pk]),
-                        )
-                    )
-
-                if not org.is_verified():
-                    links.append(
-                        dict(
-                            title=_("Verify"),
-                            style="button-secondary",
-                            posterize=True,
-                            href="%s?action=verify" % reverse("orgs.org_update", args=[org.pk]),
-                        )
-                    )
-
-                if self.request.user.has_perm("orgs.org_delete"):
-                    links.append(
-                        dict(
-                            id="delete-org",
-                            title=_("Delete"),
-                            href=reverse("orgs.org_delete", args=[org.id]),
-                            modax=_("Delete Workspace"),
-                        )
-                    )
-            return links
-
-        def get_context_data(self, **kwargs):
-            context = super().get_context_data(**kwargs)
-
-            org = self.get_object()
-
-            users_roles = []
-
-            for role in OrgRole:
-                role_users = list(org.get_users(roles=[role]).values("id", "email"))
-                if role_users:
-                    users_roles.append(dict(role_display=role.display_plural, users=role_users))
-
-            context["users_roles"] = users_roles
-
-            return context
+            return reverse("orgs.org_read", args=[self.get_object().pk])
 
         def post(self, request, *args, **kwargs):
             if "action" in request.POST:
@@ -2208,11 +2234,30 @@ class OrgCRUDL(SmartCRUDL):
             obj.limits = cleaned_data["limits"]
             return obj
 
-    class Delete(ModalMixin, SmartDeleteView):
+    class Delete(SpaMixin, OrgObjPermsMixin, ModalMixin, SmartDeleteView):
         cancel_url = "id@orgs.org_update"
-        success_url = "id@orgs.org_update"
+        success_url = "@orgs.org_workspace"
         fields = ("id",)
         submit_button_name = _("Delete")
+
+        def has_org_perm(self, codename):
+            # users can't delete the primary org
+            org = self.get_object()
+            if not org.parent:
+                return False
+
+            return super().has_org_perm(codename)
+
+        def has_permission(self, request, *args, **kwargs):
+            # staff can delete any org
+            if request.user.is_staff:
+                return True
+            return super().has_permission(request, *args, **kwargs)
+
+        def get_object_org(self):
+            # child orgs work in the context of their parent
+            org = self.get_object()
+            return org if not org.parent else org.parent
 
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
@@ -2263,7 +2308,7 @@ class OrgCRUDL(SmartCRUDL):
             context["role_summary"] = role_summary
             return context
 
-    class ManageAccounts(SpaMixin, InferOrgMixin, OrgPermsMixin, SmartUpdateView):
+    class ManageAccounts(SpaMixin, ContentMenuMixin, InferOrgMixin, OrgPermsMixin, SmartUpdateView):
         class AccountsForm(forms.ModelForm):
             invite_emails = forms.CharField(
                 required=False, widget=InputWidget(attrs={"widget_only": True, "placeholder": _("Email Address")})
@@ -2403,25 +2448,40 @@ class OrgCRUDL(SmartCRUDL):
         success_url = "@orgs.org_manage_accounts"
         success_message = ""
         submit_button_name = _("Save Changes")
-        title = _("Manage Logins")
+        title = _("Users")
 
-        def get_gear_links(self):
-            links = []
+        def derive_title(self):
+            if self.object.parent and self.is_spa():
+                return self.object.name
+            else:
+                return super().derive_title()
+
+        def build_content_menu(self, menu):
+            other_org = self.request.org.id != self.get_object().id
+
             if self.is_spa():
-                if self.request.user.get_org().id != self.get_object().id:
-                    links.append(
-                        dict(
-                            title=_("Edit"),
-                            modax=_("Edit Workspace"),
-                            href=f"{reverse('orgs.org_edit_sub_org')}?org={self.object.pk}",
-                        )
+                if other_org:
+                    menu.add_modax(
+                        _("Edit"),
+                        "edit-workspace",
+                        f"{reverse('orgs.org_edit_sub_org')}?org={self.object.id}",
+                        title=_("Edit Workspace"),
                     )
 
+                    if self.has_org_perm("orgs.org_delete"):
+                        menu.add_modax(
+                            _("Delete"),
+                            "delete-workspace",
+                            reverse("orgs.org_delete", args=[self.object.id]),
+                            title=_("Delete Workspace"),
+                            disabled=True,
+                        )
+
             else:
-                if self.request.user.get_org().id != self.get_object().id:
-                    links.append(dict(title=_("Workspaces"), style="button-light", href=reverse("orgs.org_sub_orgs")))
-                links.append(dict(title=_("Home"), style="button-light", href=reverse("orgs.org_home")))
-            return links
+                if other_org:
+                    menu.add_link(_("Workspaces"), reverse("orgs.org_sub_orgs"))
+
+                menu.add_link(_("Home"), reverse("orgs.org_home"))
 
         def get_form_kwargs(self):
             kwargs = super().get_form_kwargs()
@@ -2475,7 +2535,7 @@ class OrgCRUDL(SmartCRUDL):
         # if we don't support multi orgs, go home
         def pre_process(self, request, *args, **kwargs):
             response = super().pre_process(request, *args, **kwargs)
-            if not response and not request.user.get_org().is_multi_org:
+            if not response and not request.org.is_multi_org:
                 return HttpResponseRedirect(reverse("orgs.org_home"))
             return response
 
@@ -2483,18 +2543,18 @@ class OrgCRUDL(SmartCRUDL):
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
             org_id = self.request.GET.get("org")
-            context["parent"] = Org.objects.filter(id=org_id, parent=self.request.user.get_org()).first()
+            context["parent"] = Org.objects.filter(id=org_id, parent=self.request.org).first()
             return context
 
         def get_object(self, *args, **kwargs):
             org_id = self.request.GET.get("org")
-            return Org.objects.filter(id=org_id, parent=self.request.user.get_org()).first()
+            return Org.objects.filter(id=org_id, parent=self.request.org).first()
 
         def get_success_url(self):  # pragma: needs cover
             org_id = self.request.GET.get("org")
             return "%s?org=%s" % (reverse("orgs.org_manage_accounts_sub_org"), org_id)
 
-    class Service(SmartFormView):
+    class Service(StaffOnlyMixin, SmartFormView):
         class ServiceForm(forms.Form):
             organization = TembaChoiceField(queryset=Org.objects.all(), empty_label=None)
             redirect_url = forms.CharField(required=False)
@@ -2514,43 +2574,18 @@ class OrgCRUDL(SmartCRUDL):
             self.request.session["org_id"] = None
             return HttpResponseRedirect(reverse("orgs.org_manage"))
 
-    class SubOrgs(SpaMixin, MultiOrgMixin, InferOrgMixin, SmartListView):
-        link_fields = ()
+    class SubOrgs(SpaMixin, ContentMenuMixin, MultiOrgMixin, InferOrgMixin, SmartListView):
+        fields = ("name", "contacts", "manage", "created_on")
         title = _("Workspaces")
+        link_fields = []
 
-        def derive_fields(self):
-            if self.get_object().uses_topups:
-                return "credits", "name", "manage", "created_on"
-            else:
-                return "name", "contacts", "manage", "created_on"
-
-        def get_gear_links(self):
-            links = []
-
+        def build_content_menu(self, menu):
+            org = self.get_object()
             if self.has_org_perm("orgs.org_dashboard"):
-                links.append(dict(title=_("Dashboard"), href=reverse("dashboard.dashboard_home")))
+                menu.add_link(_("Dashboard"), reverse("dashboard.dashboard_home"))
 
-            if self.has_org_perm("orgs.org_create_sub_org"):
-                links.append(
-                    dict(
-                        title=_("New Workspace"),
-                        href=reverse("orgs.org_create_sub_org"),
-                        modax=_("New Workspace"),
-                        id="new-workspace",
-                    )
-                )
-
-            if self.has_org_perm("orgs.org_transfer_credits") and self.get_object().uses_topups:
-                links.append(
-                    dict(
-                        title=_("Transfer Credits"),
-                        href=reverse("orgs.org_transfer_credits"),
-                        modax=_("Transfer Credits"),
-                        id="transfer-credits",
-                    )
-                )
-
-            return links
+            if self.has_org_perm("orgs.org_create_child") and org.is_multi_org and not org.parent:
+                menu.add_modax(_("New Workspace"), "new-workspace", reverse("orgs.org_create_child"))
 
         def get_manage(self, obj):  # pragma: needs cover
             if obj == self.get_object():
@@ -2567,15 +2602,11 @@ class OrgCRUDL(SmartCRUDL):
         def get_contacts(self, obj):
             return obj.get_contact_count()
 
-        def get_credits(self, obj):
-            credits = obj.get_credits_remaining()
-            return mark_safe(f'<div class="edit-org"><div class="num-credits">{format(credits, ",d")}</div></div>')
-
         def get_name(self, obj):
             org_type = "child"
             if not obj.parent:
                 org_type = "parent"
-            if self.has_org_perm("orgs.org_create_sub_org") and obj.parent:  # pragma: needs cover
+            if self.has_org_perm("orgs.org_edit_sub_org") and obj.parent:  # pragma: needs cover
                 return mark_safe(
                     f"<temba-modax header={_('Update')} endpoint={reverse('orgs.org_edit_sub_org')}?org={obj.id} ><div class='{org_type}-org-name linked'>{escape(obj.name)}</div><div class='org-timezone'>{obj.timezone}</div></temba-modax>"
                 )
@@ -2605,8 +2636,8 @@ class OrgCRUDL(SmartCRUDL):
         def get_created_by(self, obj):  # pragma: needs cover
             return "%s %s - %s" % (obj.created_by.first_name, obj.created_by.last_name, obj.created_by.email)
 
-    class CreateSubOrg(NonAtomicMixin, MultiOrgMixin, ModalMixin, InferOrgMixin, SmartCreateView):
-        class CreateOrgForm(forms.ModelForm):
+    class CreateChild(NonAtomicMixin, SpaMixin, MultiOrgMixin, ModalMixin, InferOrgMixin, SmartCreateView):
+        class Form(forms.ModelForm):
             name = forms.CharField(
                 label=_("Workspace"), help_text=_("The name of your workspace"), widget=InputWidget()
             )
@@ -2617,31 +2648,50 @@ class OrgCRUDL(SmartCRUDL):
 
             class Meta:
                 model = Org
-                fields = "__all__"
+                fields = ("name", "date_format", "timezone")
                 widgets = {"date_format": SelectWidget()}
 
-        fields = ("name", "date_format", "timezone")
-        form_class = CreateOrgForm
+        form_class = Form
         success_url = "@orgs.org_sub_orgs"
-        permission = "orgs.org_create_sub_org"
+
+        def pre_process(self, request, *args, **kwargs):
+            if not self.request.org.is_multi_org or self.request.org.parent:
+                return HttpResponseRedirect(reverse("orgs.org_home"))
 
         def derive_initial(self):
             initial = super().derive_initial()
-            parent = self.request.user.get_org()
-            initial["timezone"] = parent.timezone
-            initial["date_format"] = parent.date_format
+            initial["timezone"] = self.request.org.timezone
+            initial["date_format"] = self.request.org.date_format
             return initial
 
         def form_valid(self, form):
-            self.object = form.save(commit=False)
-            parent = self.org
-            parent.create_sub_org(self.object.name, self.object.timezone, self.request.user)
+            child = self.org.create_child(
+                self.request.user,
+                form.cleaned_data["name"],
+                timezone=form.cleaned_data["timezone"],
+                date_format=form.cleaned_data["date_format"],
+            )
+
             if "HTTP_X_PJAX" not in self.request.META:
                 return HttpResponseRedirect(self.get_success_url())
             else:  # pragma: no cover
-                return self.render_modal_response()
 
-    class Choose(SmartFormView):
+                success_url = self.get_success_url()
+                if self.is_spa():
+                    success_url = f"{reverse('orgs.org_manage_accounts_sub_org')}?org={child.id}"
+
+                response = self.render_to_response(
+                    self.get_context_data(
+                        form=form,
+                        success_url=success_url,
+                        success_script=getattr(self, "success_script", None),
+                    )
+                )
+
+                response["Temba-Success"] = success_url
+                return response
+
+    class Choose(SpaMixin, SmartFormView):
         class Form(forms.Form):
             organization = forms.ModelChoiceField(queryset=Org.objects.none(), empty_label=None)
 
@@ -2672,10 +2722,7 @@ class OrgCRUDL(SmartCRUDL):
             user = self.request.user
             if user.is_authenticated:
                 user_orgs = self.get_user_orgs()
-                if user.is_superuser:
-                    return HttpResponseRedirect(reverse("orgs.org_manage"))
-
-                elif user_orgs.count() == 1:
+                if user_orgs.count() == 1:
                     org = user_orgs[0]
                     self.request.session["org_id"] = org.id
                     self.request.org = org
@@ -2685,7 +2732,7 @@ class OrgCRUDL(SmartCRUDL):
                     return HttpResponseRedirect(self.get_success_url())
 
                 elif user_orgs.count() == 0:
-                    if user.is_support:
+                    if user.is_staff:
                         return HttpResponseRedirect(reverse("orgs.org_manage"))
 
                     # for regular users, if there's no orgs, log them out with a message
@@ -3050,7 +3097,6 @@ class OrgCRUDL(SmartCRUDL):
         fields = ("first_name", "last_name", "email", "password", "name", "timezone", "credits")
         success_message = "Workspace successfully created."
         submit_button_name = _("Create")
-        permission = "orgs.org_grant"
         success_url = "@orgs.org_grant"
 
         def get_or_create_user(self, email, first_name, last_name, password, language):
@@ -3193,6 +3239,8 @@ class OrgCRUDL(SmartCRUDL):
 
         form_class = ResthookForm
         success_message = ""
+        title = _("Resthooks")
+        success_url = "@orgs.org_resthooks"
 
         def get_form(self):
             form = super().get_form()
@@ -3258,36 +3306,45 @@ class OrgCRUDL(SmartCRUDL):
         def get_token(self, org):
             return APIToken.objects.filter(is_active=True, org=org, role=Group.objects.get(name="Prometheus")).first()
 
-    class Workspace(SpaMixin, FormaxMixin, InferOrgMixin, OrgPermsMixin, SmartReadView):
+    class Workspace(SpaMixin, FormaxMixin, ContentMenuMixin, InferOrgMixin, OrgPermsMixin, SmartReadView):
         title = _("Workspace")
 
-        def get_gear_links(self):
-            links = []
-            org = self.get_object()
+        def build_content_menu(self, menu):
+            obj = self.request.org
 
-            if (
-                self.has_org_perm("orgs.org_transfer_credits")
-                and org.uses_topups
-                and Org.objects.filter(parent=org, is_active=True).exists()
-            ):
-                links.append(
-                    dict(
-                        title=_("Transfer Credits"),
-                        href=reverse("orgs.org_transfer_credits"),
-                        modax=_("Transfer Credits"),
-                        id="transfer-credits",
-                    )
-                )
-            return links
+            menu.add_link(_("New Channel"), reverse("channels.channel_claim"), as_button=True)
+
+            if self.has_org_perm("classifiers.classifier_connect"):
+                menu.add_link(_("New Classifier"), reverse("classifiers.classifier_connect"))
+            if self.has_org_perm("tickets.ticketer_connect") and "ticketers" in settings.FEATURES:
+                menu.add_link(_("New Ticketing Service"), reverse("tickets.ticketer_connect"))
+            if self.has_org_perm("orgs.org_create_child") and obj.is_multi_org and not obj.parent:
+                menu.add_modax(_("New Workspace"), "new-workspace", reverse("orgs.org_create_child"))
+
+            menu.new_group()
+
+            if self.has_org_perm("orgs.org_export"):
+                menu.add_link(_("Export"), reverse("orgs.org_export"))
+
+            if self.has_org_perm("orgs.org_import"):
+                menu.add_link(_("Import"), reverse("orgs.org_import"))
+
+            menu.new_group()
+            menu.add_link(_("Sign Out"), f"{reverse('users.user_logout')}?next={reverse('users.user_login')}")
 
         def derive_formax_sections(self, formax, context):
-
-            # add the channel option if we have one
-            user = self.request.user
-            org = user.get_org()
+            org = self.request.org
 
             if self.has_org_perm("orgs.org_edit"):
                 formax.add_section("org", reverse("orgs.org_edit"), icon="icon-office")
+
+            twilio_client = org.get_twilio_client()
+            if twilio_client:  # pragma: needs cover
+                formax.add_section("twilio", reverse("orgs.org_twilio_account"), icon="icon-channel-twilio")
+
+            vonage_client = org.get_vonage_client()
+            if vonage_client:  # pragma: needs cover
+                formax.add_section("vonage", reverse("orgs.org_vonage_account"), icon="icon-vonage")
 
             # only pro orgs get multiple users
             if self.has_org_perm("orgs.org_manage_accounts") and org.is_multi_user:
@@ -3296,7 +3353,7 @@ class OrgCRUDL(SmartCRUDL):
             if self.has_org_perm("orgs.org_languages"):
                 formax.add_section("languages", reverse("orgs.org_languages"), icon="icon-language")
 
-            if self.has_org_perm("orgs.org_country") and org.get_branding().get("location_support"):
+            if self.has_org_perm("orgs.org_country") and "locations" in settings.FEATURES:
                 formax.add_section("country", reverse("orgs.org_country"), icon="icon-location2")
 
             if self.has_org_perm("orgs.org_smtp_server"):
@@ -3305,63 +3362,43 @@ class OrgCRUDL(SmartCRUDL):
             if self.has_org_perm("orgs.org_token"):
                 formax.add_section("token", reverse("orgs.org_token"), icon="icon-cloud-upload", nobutton=True)
 
-            # if we are on the topups plan, show our usual credits view
-            if org.plan == settings.TOPUP_PLAN:
-                if self.has_org_perm("orgs.topup_list"):
-                    formax.add_section("topups", reverse("orgs.topup_list"), icon="icon-coins", action="link")
+            if self.has_org_perm("orgs.org_prometheus"):
+                formax.add_section("prometheus", reverse("orgs.org_prometheus"), icon="icon-prometheus", nobutton=True)
 
-            else:
-                if self.has_org_perm("orgs.org_plan"):  # pragma: needs cover
-                    formax.add_section("plan", reverse("orgs.org_plan"), icon="icon-credit", action="summary")
+            if self.has_org_perm("orgs.org_manage_integrations"):
+                for integration in IntegrationType.get_all():
+                    if integration.is_available_to(self.request.user):
+                        integration.management_ui(self.object, formax)
 
-    class Home(SpaMixin, FormaxMixin, InferOrgMixin, OrgPermsMixin, SmartReadView):
+    class Home(SpaMixin, FormaxMixin, ContentMenuMixin, InferOrgMixin, OrgPermsMixin, SmartReadView):
         title = _("Your Account")
 
-        def get_gear_links(self):
-            links = []
-
+        def build_content_menu(self, menu):
             if self.has_org_perm("channels.channel_claim"):
-                links.append(dict(title=_("Add Channel"), href=reverse("channels.channel_claim")))
-
+                menu.add_link(_("Add Channel"), reverse("channels.channel_claim"), as_button=True)
             if self.has_org_perm("classifiers.classifier_connect"):
-                links.append(dict(title=_("Add Classifier"), href=reverse("classifiers.classifier_connect")))
+                menu.add_link(_("Add Classifier"), reverse("classifiers.classifier_connect"))
+            if self.has_org_perm("tickets.ticketer_connect") and "ticketers" in settings.FEATURES:
+                menu.add_link(_("Add Ticketing Service"), reverse("tickets.ticketer_connect"))
 
-            if self.has_org_perm("tickets.ticketer_connect"):
-                links.append(dict(title=_("Add Ticketing Service"), href=reverse("tickets.ticketer_connect")))
-
-            if len(links) > 0:
-                links.append(dict(divider=True))
+            menu.new_group()
 
             if self.has_org_perm("orgs.org_export"):
-                links.append(dict(title=_("Export"), href=reverse("orgs.org_export")))
+                menu.add_link(_("Export"), reverse("orgs.org_export"))
 
             if self.has_org_perm("orgs.org_import"):
-                links.append(dict(title=_("Import"), href=reverse("orgs.org_import")))
+                menu.add_link(_("Import"), reverse("orgs.org_import"))
 
             if settings.HELP_URL:  # pragma: needs cover
-                if len(links) > 1:
-                    links.append(dict(divider=True))
+                menu.new_group()
+                menu.add_link(_("Help"), settings.HELP_URL)
 
-                links.append(dict(title=_("Help"), href=settings.HELP_URL))
-
-            """
-            if len(links) > 1:
-                links.append(dict(divider=True))
-
-            links.append(
-                dict(
-                    title=_("Sign Out"),
-                    style="button-light",
-                    href=f"{reverse('users.user_logout')}?next={reverse('users.user_login')}",
-                )
-            )
-            """
-
-            return links
+            menu.new_group()
+            menu.add_link(_("Sign Out"), f"{reverse('users.user_logout')}?next={reverse('users.user_login')}")
 
         def get_context_data(self, *args, **kwargs):
             context = super().get_context_data(*args, **kwargs)
-            # context['channels'] = Channel.objects.filter(org=self.request.user.get_org(), is_active=True, parent=None).order_by("-role")
+            # context['channels'] = Channel.objects.filter(org=self.request.org, is_active=True, parent=None).order_by("-role")
             return context
 
         def add_channel_section(self, formax, channel):
@@ -3382,21 +3419,13 @@ class OrgCRUDL(SmartCRUDL):
                 )
 
         def derive_formax_sections(self, formax, context):
-
             # add the channel option if we have one
             user = self.request.user
-            org = user.get_org()
+            org = self.request.org
 
-            shared_usage = org.parent and org.parent.has_shared_usage()
-            if not shared_usage:
-                # if we are on the topups plan, show our usual credits view
-                if org.plan == settings.TOPUP_PLAN:
-                    if self.has_org_perm("orgs.topup_list"):
-                        formax.add_section("topups", reverse("orgs.topup_list"), icon="icon-coins", action="link")
-
-                else:
-                    if self.has_org_perm("orgs.org_plan"):  # pragma: needs cover
-                        formax.add_section("plan", reverse("orgs.org_plan"), icon="icon-credit", action="summary")
+            if not (org.parent and org.plan == settings.WORKSPACE_PLAN):
+                if self.has_org_perm("orgs.org_plan"):
+                    formax.add_section("plan", reverse("orgs.org_plan"), icon="icon-credit", action="summary")
 
             if self.has_org_perm("channels.channel_update"):
                 # get any channel thats not a delegate
@@ -3442,7 +3471,7 @@ class OrgCRUDL(SmartCRUDL):
             if self.has_org_perm("orgs.org_languages"):
                 formax.add_section("languages", reverse("orgs.org_languages"), icon="icon-language")
 
-            if self.has_org_perm("orgs.org_country") and org.get_branding().get("location_support"):
+            if self.has_org_perm("orgs.org_country") and "locations" in settings.FEATURES:
                 formax.add_section("country", reverse("orgs.org_country"), icon="icon-location2")
 
             if self.has_org_perm("orgs.org_smtp_server"):
@@ -3542,7 +3571,7 @@ class OrgCRUDL(SmartCRUDL):
         def form_valid(self, form):
             disconnect = form.cleaned_data.get("disconnect", "false") == "true"
             user = self.request.user
-            org = user.get_org()
+            org = self.request.org
 
             if disconnect:
                 org.remove_twilio_account(user)
@@ -3595,81 +3624,6 @@ class OrgCRUDL(SmartCRUDL):
                 return self.request.org.children.get(id=int(self.request.GET.get("org")))
             except Org.DoesNotExist:
                 raise Http404(_("No such child workspace"))
-
-    class TransferCredits(MultiOrgMixin, ModalMixin, InferOrgMixin, SmartFormView):
-        class TransferForm(forms.Form):
-            class OrgChoiceField(forms.ModelChoiceField):
-                def label_from_instance(self, org):
-                    return "%s (%s)" % (org.name, "{:,}".format(org.get_credits_remaining()))
-
-            from_org = OrgChoiceField(
-                None,
-                required=True,
-                label=_("From Workspace"),
-                help_text=_("Select which workspace to take credits from"),
-                widget=SelectWidget(attrs={"searchable": True}),
-            )
-
-            to_org = OrgChoiceField(
-                None,
-                required=True,
-                label=_("To Workspace"),
-                help_text=_("Select which workspace to receive the credits"),
-                widget=SelectWidget(attrs={"searchable": True}),
-            )
-
-            amount = forms.IntegerField(
-                required=True, label=_("Credits"), help_text=_("How many credits to transfer"), widget=InputWidget()
-            )
-
-            def __init__(self, *args, **kwargs):
-                org = kwargs["org"]
-                del kwargs["org"]
-
-                super().__init__(*args, **kwargs)
-
-                self.fields["from_org"].queryset = Org.objects.filter(Q(parent=org) | Q(id=org.id)).order_by(
-                    "-parent", "name", "id"
-                )
-                self.fields["to_org"].queryset = Org.objects.filter(Q(parent=org) | Q(id=org.id)).order_by(
-                    "-parent", "name", "id"
-                )
-
-            def clean(self):
-                cleaned_data = super().clean()
-
-                if "amount" in cleaned_data and "from_org" in cleaned_data:
-                    from_org = cleaned_data["from_org"]
-
-                    if cleaned_data["amount"] > from_org.get_credits_remaining():
-                        raise ValidationError(
-                            _(
-                                "Sorry, %(org_name)s doesn't have enough credits for this transfer. Pick a different workspace to transfer from or reduce the transfer amount."
-                            )
-                            % dict(org_name=from_org.name)
-                        )
-
-        success_url = "@orgs.org_sub_orgs"
-        form_class = TransferForm
-        fields = ("from_org", "to_org", "amount")
-        permission = "orgs.org_transfer_credits"
-
-        def has_permission(self, request, *args, **kwargs):
-            self.org = self.request.user.get_org()
-            return self.request.user.has_perm(self.permission) or self.has_org_perm(self.permission)
-
-        def get_form_kwargs(self):
-            form_kwargs = super().get_form_kwargs()
-            form_kwargs["org"] = self.get_object()
-            return form_kwargs
-
-        def form_valid(self, form):
-            from_org = form.cleaned_data["from_org"]
-            to_org = form.cleaned_data["to_org"]
-            amount = form.cleaned_data["amount"]
-
-            from_org.allocate_credits(from_org.created_by, to_org, amount)
-            return self.render_modal_response(form)
 
     class Country(InferOrgMixin, OrgPermsMixin, SmartUpdateView):
         class CountryForm(forms.ModelForm):
@@ -3734,7 +3688,7 @@ class OrgCRUDL(SmartCRUDL):
 
         def get_form_kwargs(self):
             kwargs = super().get_form_kwargs()
-            kwargs["org"] = self.request.user.get_org()
+            kwargs["org"] = self.request.org
             return kwargs
 
         def derive_initial(self):
@@ -3800,227 +3754,3 @@ class OrgCRUDL(SmartCRUDL):
         def has_permission(self, request, *args, **kwargs):
             self.org = self.derive_org()
             return self.request.user.has_perm("orgs.org_country") or self.has_org_perm("orgs.org_country")
-
-    class ClearCache(SmartUpdateView):  # pragma: no cover
-        fields = ("id",)
-        success_message = None
-        success_url = "id@orgs.org_update"
-
-        def pre_process(self, request, *args, **kwargs):
-            cache = OrgCache(int(request.POST["cache"]))
-            num_deleted = self.get_object().clear_caches([cache])
-            self.success_message = _("Cleared %(name)s cache for this workspace (%(count)d keys)") % dict(
-                name=cache.name, count=num_deleted
-            )
-
-
-class TopUpCRUDL(SmartCRUDL):
-    actions = ("list", "create", "read", "manage", "update")
-    model = TopUp
-
-    class Read(OrgPermsMixin, SmartReadView):
-        def derive_queryset(self, **kwargs):  # pragma: needs cover
-            return TopUp.objects.filter(is_active=True, org=self.request.user.get_org()).order_by("-expires_on")
-
-    class List(OrgPermsMixin, SmartListView):
-        def derive_queryset(self, **kwargs):
-            queryset = TopUp.objects.filter(is_active=True, org=self.request.user.get_org()).order_by("-expires_on")
-            return queryset.annotate(
-                credits_remaining=ExpressionWrapper(F("credits") - Sum(F("topupcredits__used")), IntegerField())
-            )
-
-        def get_context_data(self, **kwargs):
-            context = super().get_context_data(**kwargs)
-            context["org"] = self.request.user.get_org()
-
-            now = timezone.now()
-            context["now"] = now
-            context["expiration_period"] = now + timedelta(days=30)
-
-            # show our topups in a meaningful order
-            topups = list(self.get_queryset())
-
-            def compare(topup1, topup2):  # pragma: no cover
-
-                # non expired first
-                now = timezone.now()
-                if topup1.expires_on > now and topup2.expires_on <= now:
-                    return -1
-                elif topup2.expires_on > now and topup1.expires_on <= now:
-                    return 1
-
-                # then push those without credits remaining to the bottom
-                if topup1.credits_remaining is None:
-                    topup1.credits_remaining = topup1.credits
-
-                if topup2.credits_remaining is None:
-                    topup2.credits_remaining = topup2.credits
-
-                if topup1.credits_remaining and not topup2.credits_remaining:
-                    return -1
-                elif topup2.credits_remaining and not topup1.credits_remaining:
-                    return 1
-
-                # sor the rest by their expiration date
-                if topup1.expires_on > topup2.expires_on:
-                    return -1
-                elif topup1.expires_on < topup2.expires_on:
-                    return 1
-
-                # if we end up with the same expiration, show the oldest first
-                return topup2.id - topup1.id
-
-            topups.sort(key=cmp_to_key(compare))
-            context["topups"] = topups
-            return context
-
-        def get_template_names(self):
-            if "HTTP_X_FORMAX" in self.request.META:
-                return ["orgs/topup_list_summary.haml"]
-            else:
-                return super().get_template_names()
-
-    class Create(ComponentFormMixin, SmartCreateView):
-        """
-        This is only for root to be able to credit accounts.
-        """
-
-        fields = ("credits", "price", "comment")
-
-        def get_success_url(self):
-            return reverse("orgs.topup_manage") + ("?org=%d" % self.object.org.id)
-
-        def save(self, obj):
-            obj.org = Org.objects.get(pk=self.request.GET["org"])
-            return TopUp.create(obj.org, self.request.user, price=obj.price, credits=obj.credits)
-
-        def post_save(self, obj):
-            obj = super().post_save(obj)
-            apply_topups_task.delay(obj.org.id)
-            return obj
-
-    class Update(ComponentFormMixin, SmartUpdateView):
-        fields = ("is_active", "price", "credits", "expires_on")
-
-        def get_success_url(self):
-            return reverse("orgs.topup_manage") + ("?org=%d" % self.object.org.id)
-
-        def post_save(self, obj):
-            obj = super().post_save(obj)
-            apply_topups_task.delay(obj.org.id)
-            return obj
-
-    class Manage(SmartListView):
-        """
-        This is only for root to be able to manage topups on an account
-        """
-
-        fields = ("credits", "price", "comment", "created_on", "expires_on")
-        success_url = "@orgs.org_manage"
-        default_order = "-expires_on"
-
-        def lookup_field_link(self, context, field, obj):
-            return reverse("orgs.topup_update", args=[obj.id])
-
-        def get_price(self, obj):
-            if obj.price:
-                return "$%.2f" % (obj.price / 100.0)
-            else:
-                return "-"
-
-        def get_credits(self, obj):
-            return format(obj.credits, ",d")
-
-        def get_context_data(self, **kwargs):
-            context = super().get_context_data(**kwargs)
-            context["org"] = self.org
-            return context
-
-        def derive_queryset(self):
-            self.org = Org.objects.get(pk=self.request.GET["org"])
-            return self.org.topups.all()
-
-
-class StripeHandler(View):  # pragma: no cover
-    """
-    Handles WebHook events from Stripe.  We are interested as to when invoices are
-    charged by Stripe so we can send the user an invoice email.
-    """
-
-    @csrf_exempt
-    def dispatch(self, *args, **kwargs):
-        return super().dispatch(*args, **kwargs)
-
-    def get(self, request, *args, **kwargs):
-        return HttpResponse("ILLEGAL METHOD")
-
-    def post(self, request, *args, **kwargs):
-        import stripe
-
-        from temba.orgs.models import Org, TopUp
-
-        # stripe delivers a JSON payload
-        stripe_data = json.loads(request.body)
-
-        # but we can't trust just any response, so lets go look up this event
-        stripe.api_key = get_stripe_credentials()[1]
-        event = stripe.Event.retrieve(stripe_data["id"])
-
-        if not event:
-            return HttpResponse("Ignored, no event")
-
-        if not event.livemode:
-            return HttpResponse("Ignored, test event")
-
-        # we only care about invoices being paid or failing
-        if event.type == "charge.succeeded" or event.type == "charge.failed":
-            charge = event.data.object
-            charge_date = datetime.fromtimestamp(charge.created)
-            description = charge.description
-            amount = "$%s" % (Decimal(charge.amount) / Decimal(100)).quantize(Decimal(".01"))
-
-            # look up our customer
-            customer = stripe.Customer.retrieve(charge.customer)
-
-            # and our org
-            org = Org.objects.filter(stripe_customer=customer.id).first()
-            if not org:
-                return HttpResponse("Ignored, no org for customer")
-
-            # look up the topup that matches this charge
-            topup = TopUp.objects.filter(stripe_charge=charge.id).first()
-            if topup and event.type == "charge.failed":
-                topup.rollback()
-                topup.save()
-
-            # we know this org, trigger an event for a payment succeeding
-            if org.get_admins().exists():
-                if event.type == "charge_succeeded":
-                    track = "temba.charge_succeeded"
-                else:
-                    track = "temba.charge_failed"
-
-                context = dict(
-                    description=description,
-                    invoice_id=charge.id,
-                    invoice_date=charge_date.strftime("%b %e, %Y"),
-                    amount=amount,
-                    org=org.name,
-                )
-
-                if getattr(charge, "card", None):
-                    context["cc_last4"] = charge.card.last4
-                    context["cc_type"] = charge.card.type
-                    context["cc_name"] = charge.card.name
-
-                else:
-                    context["cc_type"] = "bitcoin"
-                    context["cc_name"] = charge.source.bitcoin.address
-
-                admin = org.get_admins().first()
-
-                analytics.track(admin, track, context)
-                return HttpResponse("Event '%s': %s" % (track, context))
-
-        # empty response, 200 lets Stripe know we handled it
-        return HttpResponse("Ignored, uninteresting event")

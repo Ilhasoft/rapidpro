@@ -1,11 +1,14 @@
 import logging
 
+from django.db.models import Prefetch
+
 from celery import shared_task
 
+from temba.contacts.models import ContactField, ContactGroup
 from temba.utils import analytics
 from temba.utils.celery import nonoverlapping_task
 
-from .models import Broadcast, BroadcastMsgCount, ExportMessagesTask, LabelCount, Msg, SystemLabelCount
+from .models import Broadcast, BroadcastMsgCount, ExportMessagesTask, LabelCount, Media, Msg, SystemLabelCount
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +52,10 @@ def export_messages_task(export_id):
     """
     Export messages to a file and e-mail a link to the user
     """
-    ExportMessagesTask.objects.select_related("org", "created_by").get(id=export_id).perform()
+    ExportMessagesTask.objects.select_related("org", "created_by").prefetch_related(
+        Prefetch("with_fields", ContactField.objects.order_by("name")),
+        Prefetch("with_groups", ContactGroup.objects.order_by("name")),
+    ).get(id=export_id).perform()
 
 
 @nonoverlapping_task(track_started=True, name="squash_msgcounts", lock_timeout=7200)
@@ -57,3 +63,8 @@ def squash_msgcounts():
     SystemLabelCount.squash()
     LabelCount.squash()
     BroadcastMsgCount.squash()
+
+
+@shared_task
+def process_media_upload(media_id):
+    Media.objects.get(id=media_id).process_upload()

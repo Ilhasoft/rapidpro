@@ -15,7 +15,7 @@ class FacebookAppType(ChannelType):
     A Facebook channel
     """
 
-    extra_links = [dict(name=_("Reconnect Facebook Page"), link="channels.types.facebookapp.refresh_token")]
+    extra_links = [dict(label=_("Reconnect Facebook Page"), view_name="channels.types.facebookapp.refresh_token")]
 
     code = "FBA"
     category = ChannelType.Category.SOCIAL_MEDIA
@@ -36,7 +36,6 @@ class FacebookAppType(ChannelType):
 
     schemes = [URN.FACEBOOK_SCHEME]
     max_length = 2000
-    attachment_support = True
     free_sending = True
 
     def get_urls(self):
