@@ -1,3 +1,7 @@
+1.6.5-rapidpro-7.3.1
+----------
+* Update to rapidpro v7.3.1
+
 1.6.4-rapidpro-7.1.27
 ----------
 * Improve `trim_channel_logs_task` performance by splitting the query
