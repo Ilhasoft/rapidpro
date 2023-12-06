@@ -114,6 +114,8 @@ class Archive(models.Model):
         if self.url:
             s3_client = s3.client()
             bucket, key = self.get_storage_location()
+            if bucket == "":
+                return ""
             s3_params = {
                 "Bucket": bucket,
                 "Key": key,
