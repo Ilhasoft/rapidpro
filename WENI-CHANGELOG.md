@@ -1,3 +1,7 @@
+1.7.6-rapidpro-7.4.2
+----------
+* Add condition to ignore empty bucket
+
 1.7.5-rapidpro-7.4.2
 ----------
 * Remove Facebook login redirect
