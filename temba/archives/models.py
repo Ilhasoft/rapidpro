@@ -114,7 +114,7 @@ class Archive(models.Model):
         if self.url:
             s3_client = s3.client()
             bucket, key = self.get_storage_location()
-            if bucket == "":
+            if not bucket:
                 return ""
             s3_params = {
                 "Bucket": bucket,
@@ -175,8 +175,11 @@ class Archive(models.Model):
 
         def generator():
             for archive in archives:
-                for record in archive.iter_records(where=where):
-                    yield record
+                try:
+                    for record in archive.iter_records(where=where):
+                        yield record
+                except TypeError:
+                    pass
 
         return generator()
 
@@ -186,9 +189,12 @@ class Archive(models.Model):
         """
 
         s3_client = s3.client()
+        bucket, key = self.get_storage_location()
+
+        if not bucket:
+            return
 
         if where:
-            bucket, key = self.get_storage_location()
             response = s3_client.select_object_content(
                 Bucket=bucket,
                 Key=key,
@@ -205,7 +211,6 @@ class Archive(models.Model):
             return generator()
 
         else:
-            bucket, key = self.get_storage_location()
             s3_obj = s3_client.get_object(Bucket=bucket, Key=key)
             return jsonlgz_iterate(s3_obj["Body"])
 
