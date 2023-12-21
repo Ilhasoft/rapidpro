@@ -1,3 +1,7 @@
+1.7.7-rapidpro-7.4.2
+----------
+* Fix: Resolve condition to ignore empty bucket
+
 1.7.6-rapidpro-7.4.2
 ----------
 * Add condition to ignore empty bucket
