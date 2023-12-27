@@ -1,3 +1,7 @@
+1.7.7-rapidpro-7.5.91
+----------
+* Update: RapidPro to version 7.5.91
+
 1.7.7-rapidpro-7.4.2
 ----------
 * Fix: Resolve condition to ignore empty bucket
