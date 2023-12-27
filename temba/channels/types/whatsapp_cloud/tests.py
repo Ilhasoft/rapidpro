@@ -20,7 +20,6 @@ class WhatsAppCloudTypeTest(TembaTest):
         WHATSAPP_APPLICATION_SECRET="WAC_APP_SECRET",
         WHATSAPP_FACEBOOK_BUSINESS_ID="FB_BUSINESS_ID",
         WHATSAPP_ADMIN_SYSTEM_USER_TOKEN="WA_ADMIN_TOKEN",
-        ALLOWED_WHATSAPP_FACEBOOK_BUSINESS_IDS=["2222222222222"],
     )
     @patch("temba.channels.types.whatsapp_cloud.views.randint")
     def test_claim(self, mock_randint):
@@ -246,7 +245,11 @@ class WhatsAppCloudTypeTest(TembaTest):
                         json.dumps(
                             {
                                 "data": [
-                                    {"id": "123123123", "display_phone_number": "1234", "verified_name": "WABA name"}
+                                    {
+                                        "id": "123123123",
+                                        "display_phone_number": "1234",
+                                        "verified_name": "Long WABA name" + " foobar" * 20,
+                                    }
                                 ]
                             }
                         ),
@@ -273,7 +276,7 @@ class WhatsAppCloudTypeTest(TembaTest):
                         200,
                         json.dumps(
                             {
-                                "verified_name": "WABA name",
+                                "verified_name": "Long WABA name foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar",
                                 "code_verification_status": "VERIFIED",
                                 "display_phone_number": "1234",
                                 "quality_rating": "GREEN",
@@ -292,11 +295,16 @@ class WhatsAppCloudTypeTest(TembaTest):
                 self.assertEqual(response.context["phone_numbers"][0]["phone_number_id"], "123123123")
                 self.assertEqual(response.context["phone_numbers"][0]["business_id"], "2222222222222")
                 self.assertEqual(response.context["phone_numbers"][0]["currency"], "USD")
-                self.assertEqual(response.context["phone_numbers"][0]["verified_name"], "WABA name")
+                self.assertEqual(
+                    response.context["phone_numbers"][0]["verified_name"],
+                    "Long WABA name foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar",
+                )
 
                 post_data = response.context["form"].initial
                 post_data["number"] = "1234"
-                post_data["verified_name"] = "WABA name"
+                post_data[
+                    "verified_name"
+                ] = "Long WABA name foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar"
                 post_data["phone_number_id"] = "123123123"
                 post_data["waba_id"] = "111111111111111"
                 post_data["business_id"] = "2222222222222"
@@ -308,7 +316,7 @@ class WhatsAppCloudTypeTest(TembaTest):
 
                 self.assertNotIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
 
-                self.assertEqual(4, wa_cloud_post.call_count)
+                self.assertEqual(3, wa_cloud_post.call_count)
 
                 self.assertEqual(
                     "https://graph.facebook.com/v13.0/111111111111111/assigned_users",
@@ -319,19 +327,15 @@ class WhatsAppCloudTypeTest(TembaTest):
                 )
 
                 self.assertEqual(
-                    "https://graph.facebook.com/v13.0/567567567/whatsapp_credit_sharing_and_attach",
-                    wa_cloud_post.call_args_list[1][0][0],
-                )
-                self.assertEqual(
                     "https://graph.facebook.com/v13.0/111111111111111/subscribed_apps",
-                    wa_cloud_post.call_args_list[2][0][0],
+                    wa_cloud_post.call_args_list[1][0][0],
                 )
 
                 self.assertEqual(
-                    "https://graph.facebook.com/v13.0/123123123/register", wa_cloud_post.call_args_list[3][0][0]
+                    "https://graph.facebook.com/v13.0/123123123/register", wa_cloud_post.call_args_list[2][0][0]
                 )
                 self.assertEqual(
-                    {"messaging_product": "whatsapp", "pin": "111111"}, wa_cloud_post.call_args_list[3][1]["data"]
+                    {"messaging_product": "whatsapp", "pin": "111111"}, wa_cloud_post.call_args_list[2][1]["data"]
                 )
 
                 channel = Channel.objects.get()
@@ -341,13 +345,15 @@ class WhatsAppCloudTypeTest(TembaTest):
                     reverse("channels.channel_read", args=(channel.uuid,)),
                 )
 
-                self.assertEqual("1234 - WABA name", channel.name)
+                self.assertEqual("1234 - Long WABA name foobar foobar foobar foobar foobar foob...", channel.name)
                 self.assertEqual("123123123", channel.address)
                 self.assertEqual("WAC", channel.channel_type)
-                self.assertTrue(channel.type.has_attachment_support(channel))
 
                 self.assertEqual("1234", channel.config["wa_number"])
-                self.assertEqual("WABA name", channel.config["wa_verified_name"])
+                self.assertEqual(
+                    "Long WABA name foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar",
+                    channel.config["wa_verified_name"],
+                )
                 self.assertEqual("111111111111111", channel.config["wa_waba_id"])
                 self.assertEqual("USD", channel.config["wa_currency"])
                 self.assertEqual("2222222222222", channel.config["wa_business_id"])

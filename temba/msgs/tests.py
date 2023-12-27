@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
-from unittest.mock import PropertyMock, patch
+from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 import pytz
 from openpyxl import load_workbook
@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from temba.archives.models import Archive
 from temba.channels.models import ChannelCount, ChannelEvent, ChannelLog
-from temba.contacts.models import URN, ContactURN
+from temba.contacts.models import URN, Contact, ContactURN
 from temba.contacts.search.omnibox import omnibox_serialize
 from temba.msgs.models import (
     Attachment,
@@ -19,17 +19,190 @@ from temba.msgs.models import (
     ExportMessagesTask,
     Label,
     LabelCount,
+    Media,
     Msg,
     SystemLabel,
     SystemLabelCount,
 )
 from temba.schedules.models import Schedule
-from temba.tests import AnonymousOrg, CRUDLTestMixin, TembaTest
+from temba.tests import AnonymousOrg, CRUDLTestMixin, TembaTest, mock_uuids
 from temba.tests.engine import MockSessionWriter
 from temba.tests.s3 import MockS3Client, jsonlgz_encode
 
 from .tasks import squash_msgcounts
 from .templatetags.sms import as_icon
+
+
+class MediaTest(TembaTest):
+    def tearDown(self):
+        self.clear_storage()
+
+        return super().tearDown()
+
+    def test_clean_name(self):
+        self.assertEqual("file.jpg", Media.clean_name("", "image/jpeg"))
+        self.assertEqual("foo.jpg", Media.clean_name("foo", "image/jpeg"))
+        self.assertEqual("file.png", Media.clean_name("*.png", "image/png"))
+        self.assertEqual("passwd.jpg", Media.clean_name(".passwd", "image/jpeg"))
+        self.assertEqual("tést[0].jpg", Media.clean_name("tést[0]/^..\\", "image/jpeg"))
+
+    @mock_uuids
+    def test_from_upload(self):
+        media = Media.from_upload(
+            self.org,
+            self.admin,
+            self.upload(f"{settings.MEDIA_ROOT}/test_media/steve marten.jpg", "image/jpeg"),
+            process=False,
+        )
+
+        self.assertEqual("b97f69f7-5edf-45c7-9fda-d37066eae91d", str(media.uuid))
+        self.assertEqual(self.org, media.org)
+        self.assertEqual(
+            f"/media/test_orgs/{self.org.id}/media/b97f/b97f69f7-5edf-45c7-9fda-d37066eae91d/steve%20marten.jpg",
+            media.url,
+        )
+        self.assertEqual("image/jpeg", media.content_type)
+        self.assertEqual(
+            f"test_orgs/{self.org.id}/media/b97f/b97f69f7-5edf-45c7-9fda-d37066eae91d/steve marten.jpg", media.path
+        )
+        self.assertEqual(self.admin, media.created_by)
+        self.assertEqual(Media.STATUS_PENDING, media.status)
+
+        # check that our filename is cleaned
+        media = Media.from_upload(
+            self.org,
+            self.admin,
+            self.upload(f"{settings.MEDIA_ROOT}/test_media/klab.png", "image/png", name="../../../etc/passwd"),
+            process=False,
+        )
+
+        self.assertEqual(
+            f"test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/passwd.png", media.path
+        )
+
+    @mock_uuids
+    def test_process_image_png(self):
+        media = Media.from_upload(
+            self.org,
+            self.admin,
+            self.upload(f"{settings.MEDIA_ROOT}/test_media/klab.png", "image/png"),
+        )
+        media.refresh_from_db()
+
+        self.assertEqual(371425, media.size)
+        self.assertEqual(0, media.duration)
+        self.assertEqual(480, media.width)
+        self.assertEqual(360, media.height)
+        self.assertEqual(Media.STATUS_READY, media.status)
+
+    @mock_uuids
+    def test_process_audio_wav(self):
+        media = Media.from_upload(
+            self.org, self.admin, self.upload(f"{settings.MEDIA_ROOT}/test_media/allo.wav", "audio/wav")
+        )
+        media.refresh_from_db()
+
+        self.assertEqual(81818, media.size)
+        self.assertEqual(5110, media.duration)
+        self.assertEqual(0, media.width)
+        self.assertEqual(0, media.height)
+        self.assertEqual(Media.STATUS_READY, media.status)
+
+        alt1, alt2 = list(media.alternates.order_by("id"))
+
+        self.assertEqual(self.org, alt1.org)
+        self.assertEqual(
+            f"/media/test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/allo.mp3", alt1.url
+        )
+        self.assertEqual("audio/mp3", alt1.content_type)
+        self.assertEqual(
+            f"test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/allo.mp3", alt1.path
+        )
+        self.assertAlmostEqual(5517, alt1.size, delta=1000)
+        self.assertEqual(5110, alt1.duration)
+        self.assertEqual(0, alt1.width)
+        self.assertEqual(0, alt1.height)
+        self.assertEqual(Media.STATUS_READY, alt1.status)
+
+        self.assertEqual(self.org, alt2.org)
+        self.assertEqual(
+            f"/media/test_orgs/{self.org.id}/media/d1ee/d1ee73f0-bdb5-47ce-99dd-0c95d4ebf008/allo.m4a", alt2.url
+        )
+        self.assertEqual("audio/mp4", alt2.content_type)
+        self.assertEqual(
+            f"test_orgs/{self.org.id}/media/d1ee/d1ee73f0-bdb5-47ce-99dd-0c95d4ebf008/allo.m4a", alt2.path
+        )
+        self.assertAlmostEqual(20552, alt2.size, delta=7500)
+        self.assertEqual(5110, alt2.duration)
+        self.assertEqual(0, alt2.width)
+        self.assertEqual(0, alt2.height)
+        self.assertEqual(Media.STATUS_READY, alt2.status)
+
+    @mock_uuids
+    def test_process_audio_m4a(self):
+        media = Media.from_upload(
+            self.org, self.admin, self.upload(f"{settings.MEDIA_ROOT}/test_media/bubbles.m4a", "audio/mp4")
+        )
+        media.refresh_from_db()
+
+        self.assertEqual(46468, media.size)
+        self.assertEqual(10216, media.duration)
+        self.assertEqual(0, media.width)
+        self.assertEqual(0, media.height)
+        self.assertEqual(Media.STATUS_READY, media.status)
+
+        alt = media.alternates.get()
+
+        self.assertEqual(self.org, alt.org)
+        self.assertEqual(
+            f"/media/test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/bubbles.mp3", alt.url
+        )
+        self.assertEqual("audio/mp3", alt.content_type)
+        self.assertEqual(
+            f"test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/bubbles.mp3", alt.path
+        )
+        self.assertAlmostEqual(41493, alt.size, delta=1000)
+        self.assertEqual(10216, alt.duration)
+        self.assertEqual(0, alt.width)
+        self.assertEqual(0, alt.height)
+        self.assertEqual(Media.STATUS_READY, alt.status)
+
+    @mock_uuids
+    def test_process_video_mp4(self):
+        media = Media.from_upload(
+            self.org, self.admin, self.upload(f"{settings.MEDIA_ROOT}/test_media/snow.mp4", "video/mp4")
+        )
+        media.refresh_from_db()
+
+        self.assertEqual(684558, media.size)
+        self.assertEqual(3536, media.duration)
+        self.assertEqual(640, media.width)
+        self.assertEqual(480, media.height)
+        self.assertEqual(Media.STATUS_READY, media.status)
+
+        alt = media.alternates.get()
+
+        self.assertEqual(self.org, alt.org)
+        self.assertEqual(
+            f"/media/test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/snow.jpg", alt.url
+        )
+        self.assertEqual("image/jpeg", alt.content_type)
+        self.assertEqual(f"test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/snow.jpg", alt.path)
+        self.assertAlmostEqual(37613, alt.size, delta=1000)
+        self.assertEqual(0, alt.duration)
+        self.assertEqual(640, alt.width)
+        self.assertEqual(480, alt.height)
+        self.assertEqual(Media.STATUS_READY, alt.status)
+
+    @mock_uuids
+    def test_process_unsupported(self):
+        media = Media.from_upload(
+            self.org, self.admin, self.upload(f"{settings.MEDIA_ROOT}/test_imports/simple.xls", "audio/m4a")
+        )
+        media.refresh_from_db()
+
+        self.assertEqual(19968, media.size)
+        self.assertEqual(Media.STATUS_FAILED, media.status)
 
 
 class MsgTest(TembaTest):
@@ -116,33 +289,49 @@ class MsgTest(TembaTest):
             },
         )
 
-    def test_delete(self):
-        # create some incoming messages
-        msg1 = self.create_incoming_msg(self.joe, "i'm having a problem", attachments=["image:http://a.jpg"])
-        msg2 = self.create_incoming_msg(self.frank, "ignore joe, he's a liar", attachments=["image:http://b.jpg"])
+    @patch("django.core.files.storage.default_storage.delete")
+    def test_delete(self, mock_storage_delete):
+        # create some messages
+        msg1 = self.create_incoming_msg(
+            self.joe,
+            "i'm having a problem",
+            attachments=[
+                r"audo/mp4:http://s3.com/attachments/1/a/b.jpg",
+                r"image/jpeg:http://s3.com/attachments/1/c/d%20e.jpg",
+            ],
+        )
+        msg2 = self.create_incoming_msg(self.frank, "ignore joe, he's a liar")
+        out1 = self.create_outgoing_msg(self.frank, "hi")
 
-        # create a channel logs for both
+        # can't soft delete outgoing messages
+        with self.assertRaises(AssertionError):
+            out1.delete(soft=True)
+
+        # create a channel logs for both incoming
         ChannelLog.objects.create(channel=self.channel, msg=msg1, is_error=False)
         ChannelLog.objects.create(channel=self.channel, msg=msg2, is_error=False)
 
         # we've used 2 credits
-        self.assertEqual(2, Msg.objects.all().count())
-        self.assertEqual(self.org._calculate_credits_used()[0], 2)
+        self.assertEqual(3, Msg.objects.all().count())
+        self.assertEqual(self.org._calculate_credits_used()[0], 3)
 
         # a soft delete should keep credits the same and clear text
         msg1.delete(soft=True)
         msg1.refresh_from_db()
-        self.assertEqual(2, Msg.objects.all().count())
-        self.assertEqual(self.org._calculate_credits_used()[0], 2)
+        self.assertEqual(3, Msg.objects.all().count())
+        self.assertEqual(self.org._calculate_credits_used()[0], 3)
         self.assertEqual(Msg.VISIBILITY_DELETED_BY_USER, msg1.visibility)
         self.assertEqual("", msg1.text)
         self.assertEqual([], msg1.attachments)
         self.assertEqual(1, msg1.channel_logs.count())  # logs still there
 
+        mock_storage_delete.assert_any_call("/attachments/1/a/b.jpg")
+        mock_storage_delete.assert_any_call("/attachments/1/c/d e.jpg")
+
         # test a hard delete as part of a contact removal
         msg2.delete()
-        self.assertEqual(1, Msg.objects.all().count())
-        self.assertEqual(self.org._calculate_credits_used()[0], 2)  # used credits unchanged
+        self.assertEqual(2, Msg.objects.all().count())
+        self.assertEqual(self.org._calculate_credits_used()[0], 3)  # used credits unchanged
         self.assertEqual(0, msg2.channel_logs.count())  # logs should be gone
 
     def test_get_sync_commands(self):
@@ -297,7 +486,6 @@ class MsgTest(TembaTest):
     def test_message_export_from_archives(self, mock_send_temba_email):
         export_url = reverse("msgs.msg_export")
 
-        self.clear_storage()
         self.login(self.admin)
 
         self.joe.name = "Jo\02e Blow"
@@ -370,11 +558,12 @@ class MsgTest(TembaTest):
             build_time=23425,
         )
 
-        msg2.delete()
-        msg3.delete()
-        msg4.delete()
-        msg5.delete()
-        msg6.delete()
+        with patch("django.core.files.storage.default_storage.delete"):
+            msg2.delete()
+            msg3.delete()
+            msg4.delete()
+            msg5.delete()
+            msg6.delete()
 
         # create an archive earlier than our flow created date so we check that it isn't included
         body, md5, size = jsonlgz_encode([msg7.as_archive_json()])
@@ -396,39 +585,43 @@ class MsgTest(TembaTest):
         def request_export(query, data=None):
             with self.mockReadOnly():
                 response = self.client.post(export_url + query, data)
-            self.assertEqual(response.status_code, 302)
+            self.assertModalResponse(response, redirect="/msg/inbox/")
             task = ExportMessagesTask.objects.order_by("-id").first()
             filename = "%s/test_orgs/%d/message_exports/%s.xlsx" % (settings.MEDIA_ROOT, self.org.id, task.uuid)
             return load_workbook(filename=filename)
 
         # export all visible messages (i.e. not msg3) using export_all param
-        with self.assertNumQueries(30):
+        with self.assertNumQueries(34):
             with patch("temba.utils.s3.client", return_value=mock_s3):
-                workbook = request_export("?l=I", {"export_all": 1})
+                workbook = request_export(
+                    "?l=I", {"export_all": 1, "start_date": "2000-09-01", "end_date": "2022-09-01"}
+                )
+
+        expected_headers = [
+            "Date",
+            "Contact UUID",
+            "Contact Name",
+            "URN Scheme",
+            "URN Value",
+            "Flow",
+            "Direction",
+            "Text",
+            "Attachments",
+            "Status",
+            "Channel",
+            "Labels",
+        ]
 
         self.assertExcelSheet(
             workbook.worksheets[0],
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg1.created_on,
                     msg1.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "Color Flow",
                     "IN",
                     "hello 1",
@@ -441,8 +634,8 @@ class MsgTest(TembaTest):
                     msg2.created_on,
                     msg2.contact.uuid,
                     "Frank Blow",
-                    "321",
                     "tel",
+                    "321",
                     "",
                     "IN",
                     "hello 2",
@@ -456,8 +649,8 @@ class MsgTest(TembaTest):
                     msg5.created_on,
                     msg5.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "",
                     "IN",
                     "Media message",
@@ -470,8 +663,8 @@ class MsgTest(TembaTest):
                     msg6.created_on,
                     msg6.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "",
                     "OUT",
                     "Hey out 6",
@@ -484,8 +677,8 @@ class MsgTest(TembaTest):
                     msg8.created_on,
                     msg8.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "",
                     "OUT",
                     "Hey out 8",
@@ -498,8 +691,8 @@ class MsgTest(TembaTest):
                     msg9.created_on,
                     msg9.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "",
                     "OUT",
                     "Hey out 9",
@@ -525,26 +718,13 @@ class MsgTest(TembaTest):
         self.assertExcelSheet(
             workbook.worksheets[0],
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg5.created_on,
                     msg5.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "",
                     "IN",
                     "Media message",
@@ -558,126 +738,18 @@ class MsgTest(TembaTest):
         )
 
         with patch("temba.utils.s3.client", return_value=mock_s3):
-            workbook = request_export("?l=I", {"export_all": 1, "groups": [self.just_joe.id]})
+            workbook = request_export("?l=S", {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-01"})
 
         self.assertExcelSheet(
             workbook.worksheets[0],
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
-                [
-                    msg1.created_on,
-                    msg1.contact.uuid,
-                    "Joe Blow",
-                    "123",
-                    "tel",
-                    "Color Flow",
-                    "IN",
-                    "hello 1",
-                    "",
-                    "handled",
-                    "Test Channel",
-                    "label1",
-                ],
-                [msg4.created_on, msg1.contact.uuid, "Joe Blow", "", "", "", "IN", "hello 4", "", "handled", "", ""],
-                [
-                    msg5.created_on,
-                    msg5.contact.uuid,
-                    "Joe Blow",
-                    "123",
-                    "tel",
-                    "",
-                    "IN",
-                    "Media message",
-                    "http://rapidpro.io/audio/sound.mp3",
-                    "handled",
-                    "Test Channel",
-                    "",
-                ],
+                expected_headers,
                 [
                     msg6.created_on,
                     msg6.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
-                    "",
-                    "OUT",
-                    "Hey out 6",
-                    "",
-                    "sent",
-                    "Test Channel",
-                    "",
-                ],
-                [
-                    msg8.created_on,
-                    msg8.contact.uuid,
-                    "Joe Blow",
                     "123",
-                    "tel",
-                    "",
-                    "OUT",
-                    "Hey out 8",
-                    "",
-                    "errored",
-                    "Test Channel",
-                    "",
-                ],
-                [
-                    msg9.created_on,
-                    msg9.contact.uuid,
-                    "Joe Blow",
-                    "123",
-                    "tel",
-                    "",
-                    "OUT",
-                    "Hey out 9",
-                    "",
-                    "failed",
-                    "Test Channel",
-                    "",
-                ],
-            ],
-            self.org.timezone,
-        )
-
-        with patch("temba.utils.s3.client", return_value=mock_s3):
-            workbook = request_export("?l=S", {"export_all": 0})
-
-        self.assertExcelSheet(
-            workbook.worksheets[0],
-            [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
-                [
-                    msg6.created_on,
-                    msg6.contact.uuid,
-                    "Joe Blow",
-                    "123",
-                    "tel",
                     "",
                     "OUT",
                     "Hey out 6",
@@ -691,31 +763,18 @@ class MsgTest(TembaTest):
         )
 
         with patch("temba.utils.s3.client", return_value=mock_s3):
-            workbook = request_export("?l=X", {"export_all": 0})
+            workbook = request_export("?l=X", {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-01"})
 
         self.assertExcelSheet(
             workbook.worksheets[0],
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg9.created_on,
                     msg9.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "",
                     "OUT",
                     "Hey out 9",
@@ -729,31 +788,18 @@ class MsgTest(TembaTest):
         )
 
         with patch("temba.utils.s3.client", return_value=mock_s3):
-            workbook = request_export("?l=W", {"export_all": 0})
+            workbook = request_export("?l=W", {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-01"})
 
         self.assertExcelSheet(
             workbook.worksheets[0],
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg2.created_on,
                     msg2.contact.uuid,
                     "Frank Blow",
-                    "321",
                     "tel",
+                    "321",
                     "",
                     "IN",
                     "hello 2",
@@ -767,31 +813,20 @@ class MsgTest(TembaTest):
         )
 
         with patch("temba.utils.s3.client", return_value=mock_s3):
-            workbook = request_export(f"?l={label.uuid}", {"export_all": 0})
+            workbook = request_export(
+                f"?l={label.uuid}", {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-01"}
+            )
 
         self.assertExcelSheet(
             workbook.worksheets[0],
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg1.created_on,
                     msg1.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "Color Flow",
                     "IN",
                     "hello 1",
@@ -804,22 +839,37 @@ class MsgTest(TembaTest):
             self.org.timezone,
         )
 
+        self.clear_storage()
+
     @patch("temba.utils.email.send_temba_email")
     def test_message_export(self, mock_send_temba_email):
         export_url = reverse("msgs.msg_export")
 
-        self.clear_storage()
         self.login(self.admin)
+
+        age = self.create_field("age", "Age")
+        bob = self.create_contact("Bob", urns=["telegram:234567"], fields={"age": 40})
+        devs = self.create_group("Devs", [bob])
 
         self.joe.name = "Jo\02e Blow"
         self.joe.save(update_fields=("name",))
+
+        telegram = self.create_channel("TG", "Telegram", "765432")
+
+        # messages can't be older than org
+        self.org.created_on = datetime(2016, 1, 2, 10, tzinfo=pytz.UTC)
+        self.org.save(update_fields=("created_on",))
 
         flow = self.create_flow("Color Flow")
         msg1 = self.create_incoming_msg(
             self.joe, "hello 1", created_on=datetime(2017, 1, 1, 10, tzinfo=pytz.UTC), flow=flow
         )
-        msg2 = self.create_incoming_msg(self.joe, "hello 2", created_on=datetime(2017, 1, 2, 10, tzinfo=pytz.UTC))
-        msg3 = self.create_incoming_msg(self.joe, "hello 3", created_on=datetime(2017, 1, 3, 10, tzinfo=pytz.UTC))
+        msg2 = self.create_incoming_msg(
+            bob, "hello 2", created_on=datetime(2017, 1, 2, 10, tzinfo=pytz.UTC), channel=telegram
+        )
+        msg3 = self.create_incoming_msg(
+            bob, "hello 3", created_on=datetime(2017, 1, 3, 10, tzinfo=pytz.UTC), channel=telegram
+        )
 
         # inbound message that looks like a surveyor message
         msg4 = self.create_incoming_msg(
@@ -839,7 +889,11 @@ class MsgTest(TembaTest):
             self.joe, "Hey out 6", status=Msg.STATUS_SENT, created_on=datetime(2017, 1, 6, 10, tzinfo=pytz.UTC)
         )
         msg7 = self.create_outgoing_msg(
-            self.joe, "Hey out 7", status=Msg.STATUS_DELIVERED, created_on=datetime(2017, 1, 7, 10, tzinfo=pytz.UTC)
+            bob,
+            "Hey out 7",
+            status=Msg.STATUS_DELIVERED,
+            created_on=datetime(2017, 1, 7, 10, tzinfo=pytz.UTC),
+            channel=telegram,
         )
         msg8 = self.create_outgoing_msg(
             self.joe, "Hey out 8", status=Msg.STATUS_ERRORED, created_on=datetime(2017, 1, 8, 10, tzinfo=pytz.UTC)
@@ -862,176 +916,178 @@ class MsgTest(TembaTest):
         msg3.save()
 
         # create a dummy export task so that we won't be able to export
-        blocking_export = ExportMessagesTask.create(self.org, self.admin, SystemLabel.TYPE_INBOX)
+        blocking_export = ExportMessagesTask.create(
+            self.org,
+            self.admin,
+            start_date=date(2017, 1, 1),
+            end_date=date.today(),
+            system_label=SystemLabel.TYPE_INBOX,
+        )
 
         old_modified_on = blocking_export.modified_on
 
-        response = self.client.post(reverse("msgs.msg_export") + "?l=I", {"export_all": 1}, follow=True)
+        response = self.client.post(
+            export_url + "?l=I",
+            {"export_all": 1, "start_date": "2022-09-01", "end_date": "2022-09-28"},
+        )
+        self.assertModalResponse(response, redirect="/msg/inbox/")
+
+        response = self.client.get("/msg/inbox/")
         self.assertContains(response, "already an export in progress")
 
         # perform the export manually, assert how many queries
         with self.mockReadOnly():
-            self.assertNumQueries(15, lambda: blocking_export.perform())
+            blocking_export.perform()
 
         blocking_export.refresh_from_db()
         # after performing the export `modified_on` should be updated
         self.assertNotEqual(old_modified_on, blocking_export.modified_on)
 
         def request_export(query, data=None):
-            with self.mockReadOnly(assert_models={Msg}):
+            with self.mockReadOnly(assert_models={Msg, Contact}):
                 response = self.client.post(export_url + query, data)
-            self.assertEqual(response.status_code, 302)
+            self.assertModalResponse(response, redirect="/msg/inbox/")
             task = ExportMessagesTask.objects.order_by("-id").first()
             filename = "%s/test_orgs/%d/message_exports/%s.xlsx" % (settings.MEDIA_ROOT, self.org.id, task.uuid)
             workbook = load_workbook(filename=filename)
             return workbook.worksheets[0]
 
+        expected_headers = [
+            "Date",
+            "Contact UUID",
+            "Contact Name",
+            "URN Scheme",
+            "URN Value",
+            "Flow",
+            "Direction",
+            "Text",
+            "Attachments",
+            "Status",
+            "Channel",
+            "Labels",
+        ]
+
         # export all visible messages (i.e. not msg3) using export_all param
-        with self.assertLogs("temba.msgs.models", level="INFO") as captured_logger:
-            with patch(
-                "temba.msgs.models.ExportMessagesTask.LOG_PROGRESS_PER_ROWS", new_callable=PropertyMock
-            ) as log_info_threshold:
-                # make sure that we trigger logger
-                log_info_threshold.return_value = 5
-
-                with self.assertNumQueries(30):
-                    self.assertExcelSheet(
-                        request_export("?l=I", {"export_all": 1}),
-                        [
-                            [
-                                "Date",
-                                "Contact UUID",
-                                "Name",
-                                "URN",
-                                "URN Type",
-                                "Flow",
-                                "Direction",
-                                "Text",
-                                "Attachments",
-                                "Status",
-                                "Channel",
-                                "Labels",
-                            ],
-                            [
-                                msg1.created_on,
-                                msg1.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "Color Flow",
-                                "IN",
-                                "hello 1",
-                                "",
-                                "handled",
-                                "Test Channel",
-                                "label1",
-                            ],
-                            [
-                                msg2.created_on,
-                                msg2.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "",
-                                "IN",
-                                "hello 2",
-                                "",
-                                "handled",
-                                "Test Channel",
-                                "",
-                            ],
-                            [
-                                msg4.created_on,
-                                msg4.contact.uuid,
-                                "Joe Blow",
-                                "",
-                                "",
-                                "",
-                                "IN",
-                                "hello 4",
-                                "",
-                                "handled",
-                                "",
-                                "",
-                            ],
-                            [
-                                msg5.created_on,
-                                msg5.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "",
-                                "IN",
-                                "Media message",
-                                "http://rapidpro.io/audio/sound.mp3",
-                                "handled",
-                                "Test Channel",
-                                "",
-                            ],
-                            [
-                                msg6.created_on,
-                                msg6.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "",
-                                "OUT",
-                                "Hey out 6",
-                                "",
-                                "sent",
-                                "Test Channel",
-                                "",
-                            ],
-                            [
-                                msg7.created_on,
-                                msg7.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "",
-                                "OUT",
-                                "Hey out 7",
-                                "",
-                                "delivered",
-                                "Test Channel",
-                                "",
-                            ],
-                            [
-                                msg8.created_on,
-                                msg8.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "",
-                                "OUT",
-                                "Hey out 8",
-                                "",
-                                "errored",
-                                "Test Channel",
-                                "",
-                            ],
-                            [
-                                msg9.created_on,
-                                msg9.contact.uuid,
-                                "Joe Blow",
-                                "123",
-                                "tel",
-                                "",
-                                "OUT",
-                                "Hey out 9",
-                                "",
-                                "failed",
-                                "Test Channel",
-                                "",
-                            ],
-                        ],
-                        self.org.timezone,
-                    )
-
-                self.assertEqual(len(captured_logger.output), 3)
-                self.assertTrue("fetching msgs from archives to export" in captured_logger.output[0])
-                self.assertTrue("found 8 msgs in database to export" in captured_logger.output[1])
-                self.assertTrue("exported 8 in" in captured_logger.output[2])
+        with self.assertNumQueries(32):
+            self.assertExcelSheet(
+                request_export("?l=I", {"export_all": 1, "start_date": "2000-09-01", "end_date": "2022-09-28"}),
+                [
+                    expected_headers,
+                    [
+                        msg1.created_on,
+                        msg1.contact.uuid,
+                        "Joe Blow",
+                        "tel",
+                        "123",
+                        "Color Flow",
+                        "IN",
+                        "hello 1",
+                        "",
+                        "handled",
+                        "Test Channel",
+                        "label1",
+                    ],
+                    [
+                        msg2.created_on,
+                        msg2.contact.uuid,
+                        "Bob",
+                        "telegram",
+                        "234567",
+                        "",
+                        "IN",
+                        "hello 2",
+                        "",
+                        "handled",
+                        "Telegram",
+                        "",
+                    ],
+                    [
+                        msg4.created_on,
+                        msg4.contact.uuid,
+                        "Joe Blow",
+                        "",
+                        "",
+                        "",
+                        "IN",
+                        "hello 4",
+                        "",
+                        "handled",
+                        "",
+                        "",
+                    ],
+                    [
+                        msg5.created_on,
+                        msg5.contact.uuid,
+                        "Joe Blow",
+                        "tel",
+                        "123",
+                        "",
+                        "IN",
+                        "Media message",
+                        "http://rapidpro.io/audio/sound.mp3",
+                        "handled",
+                        "Test Channel",
+                        "",
+                    ],
+                    [
+                        msg6.created_on,
+                        msg6.contact.uuid,
+                        "Joe Blow",
+                        "tel",
+                        "123",
+                        "",
+                        "OUT",
+                        "Hey out 6",
+                        "",
+                        "sent",
+                        "Test Channel",
+                        "",
+                    ],
+                    [
+                        msg7.created_on,
+                        msg7.contact.uuid,
+                        "Bob",
+                        "telegram",
+                        "234567",
+                        "",
+                        "OUT",
+                        "Hey out 7",
+                        "",
+                        "delivered",
+                        "Telegram",
+                        "",
+                    ],
+                    [
+                        msg8.created_on,
+                        msg8.contact.uuid,
+                        "Joe Blow",
+                        "tel",
+                        "123",
+                        "",
+                        "OUT",
+                        "Hey out 8",
+                        "",
+                        "errored",
+                        "Test Channel",
+                        "",
+                    ],
+                    [
+                        msg9.created_on,
+                        msg9.contact.uuid,
+                        "Joe Blow",
+                        "tel",
+                        "123",
+                        "",
+                        "OUT",
+                        "Hey out 9",
+                        "",
+                        "failed",
+                        "Test Channel",
+                        "",
+                    ],
+                ],
+                self.org.timezone,
+            )
 
         # check that notifications were created
         export = ExportMessagesTask.objects.order_by("id").last()
@@ -1044,34 +1100,21 @@ class MsgTest(TembaTest):
 
         # export just archived messages
         self.assertExcelSheet(
-            request_export("?l=A", {"export_all": 0}),
+            request_export("?l=A", {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-28"}),
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg3.created_on,
                     msg3.contact.uuid,
-                    "Joe Blow",
-                    "123",
-                    "tel",
+                    "Bob",
+                    "telegram",
+                    "234567",
                     "",
                     "IN",
                     "hello 3",
                     "",
                     "handled",
-                    "Test Channel",
+                    "Telegram",
                     "",
                 ],
             ],
@@ -1084,28 +1127,17 @@ class MsgTest(TembaTest):
 
         # try export with user label
         self.assertExcelSheet(
-            request_export("?l=%s" % label.uuid, {"export_all": 0}),
+            request_export(
+                "?l=%s" % label.uuid, {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-28"}
+            ),
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg1.created_on,
                     msg1.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "Color Flow",
                     "IN",
                     "hello 1",
@@ -1120,28 +1152,17 @@ class MsgTest(TembaTest):
 
         # try export with user label folder
         self.assertExcelSheet(
-            request_export("?l=%s" % folder.uuid, {"export_all": 0}),
+            request_export(
+                "?l=%s" % folder.uuid, {"export_all": 0, "start_date": "2000-09-01", "end_date": "2022-09-28"}
+            ),
             [
-                [
-                    "Date",
-                    "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
-                    "Flow",
-                    "Direction",
-                    "Text",
-                    "Attachments",
-                    "Status",
-                    "Channel",
-                    "Labels",
-                ],
+                expected_headers,
                 [
                     msg1.created_on,
                     msg1.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
                     "Color Flow",
                     "IN",
                     "hello 1",
@@ -1154,12 +1175,13 @@ class MsgTest(TembaTest):
             self.org.timezone,
         )
 
-        # try export with groups and date range
+        # try export with a date range, a field and a group
         export_data = {
             "export_all": 1,
-            "groups": [self.just_joe.id],
             "start_date": msg5.created_on.strftime("%Y-%m-%d"),
             "end_date": msg7.created_on.strftime("%Y-%m-%d"),
+            "with_fields": [age.id],
+            "with_groups": [devs.id],
         }
 
         self.assertExcelSheet(
@@ -1168,9 +1190,11 @@ class MsgTest(TembaTest):
                 [
                     "Date",
                     "Contact UUID",
-                    "Name",
-                    "URN",
-                    "URN Type",
+                    "Contact Name",
+                    "URN Scheme",
+                    "URN Value",
+                    "Field:Age",
+                    "Group:Devs",
                     "Flow",
                     "Direction",
                     "Text",
@@ -1183,8 +1207,10 @@ class MsgTest(TembaTest):
                     msg5.created_on,
                     msg5.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
+                    "",
+                    False,
                     "",
                     "IN",
                     "Media message",
@@ -1197,8 +1223,10 @@ class MsgTest(TembaTest):
                     msg6.created_on,
                     msg6.contact.uuid,
                     "Joe Blow",
-                    "123",
                     "tel",
+                    "123",
+                    "",
+                    False,
                     "",
                     "OUT",
                     "Hey out 6",
@@ -1210,39 +1238,55 @@ class MsgTest(TembaTest):
                 [
                     msg7.created_on,
                     msg7.contact.uuid,
-                    "Joe Blow",
-                    "123",
-                    "tel",
+                    "Bob",
+                    "telegram",
+                    "234567",
+                    "40",
+                    True,
                     "",
                     "OUT",
                     "Hey out 7",
                     "",
                     "delivered",
-                    "Test Channel",
+                    "Telegram",
                     "",
                 ],
             ],
             self.org.timezone,
         )
 
-        # check sending an invalid date
-        response = self.client.post(reverse("msgs.msg_export") + "?l=I", {"export_all": 1, "start_date": "xyz"})
-        self.assertEqual(response.status_code, 200)
+        # try to submit an invalid date (UI doesn't actually allow this)
+        response = self.client.post(export_url + "?l=I", {"export_all": 1, "start_date": "xyz"})
         self.assertFormError(response, "form", "start_date", "Enter a valid date.")
+
+        # try to submit without specifying dates (UI doesn't actually allow this)
+        response = self.client.post(export_url + "?l=I", {"export_all": 1})
+        self.assertFormError(response, "form", "start_date", "This field is required.")
+        self.assertFormError(response, "form", "end_date", "This field is required.")
+
+        # try to submit with start date in future
+        response = self.client.post(
+            export_url + "?l=I", {"export_all": 1, "start_date": "2200-01-01", "end_date": "2022-09-28"}
+        )
+        self.assertFormError(response, "form", "__all__", "Start date can't be in the future.")
+
+        # try to submit with start date > end date
+        response = self.client.post(
+            export_url + "?l=I", {"export_all": 1, "start_date": "2022-09-01", "end_date": "2022-03-01"}
+        )
+        self.assertFormError(response, "form", "__all__", "End date can't be before start date.")
 
         # test as anon org to check that URNs don't end up in exports
         with AnonymousOrg(self.org):
-            joe_anon_id = f"{self.joe.id:010d}"
-
             self.assertExcelSheet(
-                request_export("?l=I", {"export_all": 1}),
+                request_export("?l=I", {"export_all": 1, "start_date": "2000-09-01", "end_date": "2022-09-28"}),
                 [
                     [
                         "Date",
                         "Contact UUID",
-                        "Name",
-                        "ID",
-                        "URN Type",
+                        "Contact Name",
+                        "URN Scheme",
+                        "Anon Value",
                         "Flow",
                         "Direction",
                         "Text",
@@ -1255,8 +1299,8 @@ class MsgTest(TembaTest):
                         msg1.created_on,
                         msg1.contact.uuid,
                         "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "tel",
+                        self.joe.anon_display,
                         "Color Flow",
                         "IN",
                         "hello 1",
@@ -1268,23 +1312,23 @@ class MsgTest(TembaTest):
                     [
                         msg2.created_on,
                         msg2.contact.uuid,
-                        "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "Bob",
+                        "telegram",
+                        bob.anon_display,
                         "",
                         "IN",
                         "hello 2",
                         "",
                         "handled",
-                        "Test Channel",
+                        "Telegram",
                         "",
                     ],
                     [
                         msg4.created_on,
                         msg4.contact.uuid,
                         "Joe Blow",
-                        joe_anon_id,
                         "",
+                        self.joe.anon_display,
                         "",
                         "IN",
                         "hello 4",
@@ -1297,8 +1341,8 @@ class MsgTest(TembaTest):
                         msg5.created_on,
                         msg5.contact.uuid,
                         "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "tel",
+                        self.joe.anon_display,
                         "",
                         "IN",
                         "Media message",
@@ -1311,8 +1355,8 @@ class MsgTest(TembaTest):
                         msg6.created_on,
                         msg6.contact.uuid,
                         "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "tel",
+                        self.joe.anon_display,
                         "",
                         "OUT",
                         "Hey out 6",
@@ -1324,23 +1368,23 @@ class MsgTest(TembaTest):
                     [
                         msg7.created_on,
                         msg7.contact.uuid,
-                        "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "Bob",
+                        "telegram",
+                        bob.anon_display,
                         "",
                         "OUT",
                         "Hey out 7",
                         "",
                         "delivered",
-                        "Test Channel",
+                        "Telegram",
                         "",
                     ],
                     [
                         msg8.created_on,
                         msg8.contact.uuid,
                         "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "tel",
+                        self.joe.anon_display,
                         "",
                         "OUT",
                         "Hey out 8",
@@ -1353,8 +1397,8 @@ class MsgTest(TembaTest):
                         msg9.created_on,
                         msg9.contact.uuid,
                         "Joe Blow",
-                        joe_anon_id,
-                        "",
+                        "tel",
+                        self.joe.anon_display,
                         "",
                         "OUT",
                         "Hey out 9",
@@ -1367,9 +1411,13 @@ class MsgTest(TembaTest):
                 self.org.timezone,
             )
 
-        response = self.client.post(reverse("msgs.msg_export") + "?l=I&redirect=http://foo.me", {"export_all": 1})
-        self.assertEqual(302, response.status_code)
-        self.assertEqual("/msg/inbox/", response.url)
+        response = self.client.post(
+            export_url + "?l=I&redirect=http://foo.me",
+            {"export_all": 1, "start_date": "2000-09-01", "end_date": "2022-09-28"},
+        )
+        self.assertModalResponse(response, redirect="/msg/inbox/")
+
+        self.clear_storage()
 
     def test_big_ids(self):
         # create an incoming message with big id
@@ -1386,7 +1434,9 @@ class MsgTest(TembaTest):
             visibility="V",
             created_on=timezone.now(),
         )
-        ChannelLog.objects.create(id=3_000_000_000, channel=msg.channel, msg=msg, is_error=True, description="Boom")
+        ChannelLog.objects.create(
+            id=3_000_000_000, channel=msg.channel, msg=msg, is_error=True, log_type=ChannelLog.LOG_TYPE_MSG_RECEIVE
+        )
         spam = self.create_label("Spam")
         msg.labels.add(spam)
 
@@ -1401,14 +1451,14 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         msg4 = self.create_incoming_msg(contact2, "message number 4")
         msg5 = self.create_incoming_msg(contact2, "message number 5", visibility="A")
         self.create_incoming_msg(contact2, "message number 6", status=Msg.STATUS_PENDING)
-        ChannelLog.objects.create(channel=self.channel, msg=msg1, description="Success")
-        ChannelLog.objects.create(channel=self.channel, msg=msg2, description="Success")
+        ChannelLog.objects.create(channel=self.channel, msg=msg1, log_type=ChannelLog.LOG_TYPE_MSG_RECEIVE)
+        ChannelLog.objects.create(channel=self.channel, msg=msg2, log_type=ChannelLog.LOG_TYPE_MSG_RECEIVE)
 
         inbox_url = reverse("msgs.msg_inbox")
 
         # check query count
         self.login(self.admin)
-        with self.assertNumQueries(28):
+        with self.assertNumQueries(16):
             self.client.get(inbox_url)
 
         response = self.assertListFetch(
@@ -1422,7 +1472,7 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         self.assertContains(response, "function refresh")
 
         self.assertEqual(20000, response.context["refresh"])
-        self.assertEqual(("archive", "label", "send"), response.context["actions"])
+        self.assertEqual(("archive", "label"), response.context["actions"])
         self.assertEqual({"count": 4, "label": "Inbox", "url": "/msg/inbox/"}, response.context["folders"][0])
 
         # test searching
@@ -1482,6 +1532,9 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         msg1.refresh_from_db()
         self.assertEqual({label1, label3}, set(msg1.labels.all()))
 
+        self.assertContentMenu(inbox_url, self.user, ["Download"])
+        self.assertContentMenu(inbox_url, self.admin, ["New Label", "Download"], True)
+
     def test_flows(self):
         contact1 = self.create_contact("Joe Blow", phone="+250788000001")
         msg1 = self.create_incoming_msg(contact1, "test 1", msg_type="F")
@@ -1494,7 +1547,7 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
             flows_url, allow_viewers=True, allow_editors=True, context_objects=[msg2, msg1]
         )
 
-        self.assertEqual(("archive", "label", "send"), response.context["actions"])
+        self.assertEqual(("archive", "label"), response.context["actions"])
 
     def test_archived(self):
         contact1 = self.create_contact("Joe Blow", phone="+250788000001")
@@ -1504,21 +1557,21 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         msg3 = self.create_incoming_msg(contact2, "message number 3", visibility=Msg.VISIBILITY_ARCHIVED)
         msg4 = self.create_incoming_msg(contact2, "message number 4", visibility=Msg.VISIBILITY_DELETED_BY_USER)
         self.create_incoming_msg(contact2, "message number 5", status=Msg.STATUS_PENDING)
-        ChannelLog.objects.create(channel=self.channel, msg=msg1, description="Success")
-        ChannelLog.objects.create(channel=self.channel, msg=msg2, description="Success")
+        ChannelLog.objects.create(channel=self.channel, msg=msg1, log_type=ChannelLog.LOG_TYPE_MSG_RECEIVE)
+        ChannelLog.objects.create(channel=self.channel, msg=msg2, log_type=ChannelLog.LOG_TYPE_MSG_RECEIVE)
 
         archived_url = reverse("msgs.msg_archived")
 
         # check query count
         self.login(self.admin)
-        with self.assertNumQueries(28):
+        with self.assertNumQueries(16):
             self.client.get(archived_url)
 
         response = self.assertListFetch(
             archived_url + "?refresh=10000", allow_viewers=True, allow_editors=True, context_objects=[msg3, msg2, msg1]
         )
 
-        self.assertEqual(("restore", "label", "delete", "send"), response.context["actions"])
+        self.assertEqual(("restore", "label", "delete"), response.context["actions"])
         self.assertEqual({"count": 3, "label": "Archived", "url": "/msg/archived/"}, response.context["folders"][2])
 
         # test searching
@@ -1554,7 +1607,7 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
 
         # check query count
         self.login(self.admin)
-        with self.assertNumQueries(31):
+        with self.assertNumQueries(17):
             self.client.get(outbox_url)
 
         # messages sorted by created_on
@@ -1609,18 +1662,22 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         msg1 = self.create_outgoing_msg(contact1, "Hi 1", status="W", sent_on=timezone.now() - timedelta(hours=1))
         msg2 = self.create_outgoing_msg(contact1, "Hi 2", status="S", sent_on=timezone.now() - timedelta(hours=3))
         msg3 = self.create_outgoing_msg(contact2, "Hi 3", status="D", sent_on=timezone.now() - timedelta(hours=2))
-        ChannelLog.objects.create(channel=self.channel, msg=msg1, description="Success")
-        ChannelLog.objects.create(channel=self.channel, msg=msg2, description="Success")
+        ChannelLog.objects.create(channel=self.channel, msg=msg1, log_type=ChannelLog.LOG_TYPE_MSG_SEND)
+        ChannelLog.objects.create(channel=self.channel, msg=msg2, log_type=ChannelLog.LOG_TYPE_MSG_SEND)
 
         sent_url = reverse("msgs.msg_sent")
 
         # check query count
         self.login(self.admin)
-        with self.assertNumQueries(33):
+        with self.assertNumQueries(15):
             self.client.get(sent_url)
 
         # messages sorted by sent_on
-        self.assertListFetch(sent_url, allow_viewers=True, allow_editors=True, context_objects=[msg1, msg3, msg2])
+        response = self.assertListFetch(
+            sent_url, allow_viewers=True, allow_editors=True, context_objects=[msg1, msg3, msg2]
+        )
+
+        self.assertContains(response, reverse("channels.channellog_msg", args=[msg1.channel.uuid, msg1.id]))
 
         response = self.client.get(sent_url + "?search=joe")
         self.assertEqual([msg1, msg2], list(response.context_data["object_list"]))
@@ -1629,7 +1686,7 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
     def test_failed(self, mock_msg_resend):
         contact1 = self.create_contact("Joe Blow", phone="+250788000001")
         msg1 = self.create_outgoing_msg(contact1, "message number 1", status="F")
-        log = ChannelLog.objects.create(channel=msg1.channel, msg=msg1, is_error=True, description="Failed")
+        ChannelLog.objects.create(channel=msg1.channel, msg=msg1, is_error=True, log_type=ChannelLog.LOG_TYPE_MSG_SEND)
 
         failed_url = reverse("msgs.msg_failed")
 
@@ -1643,7 +1700,7 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
 
         # check query count
         self.login(self.admin)
-        with self.assertNumQueries(32):
+        with self.assertNumQueries(15):
             self.client.get(failed_url)
 
         response = self.assertListFetch(
@@ -1651,12 +1708,7 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         )
 
         self.assertEqual(("resend",), response.context["actions"])
-        self.assertContains(response, reverse("channels.channellog_read", args=[log.channel.uuid, log.id]))
-
-        # make the org anonymous
-        with AnonymousOrg(self.org):
-            response = self.requestView(failed_url, self.admin)
-            self.assertNotContains(response, reverse("channels.channellog_read", args=[log.channel.uuid, log.id]))
+        self.assertContains(response, reverse("channels.channellog_msg", args=[msg1.channel.uuid, msg1.id]))
 
         # resend some messages
         self.client.post(failed_url, {"action": "resend", "objects": [msg2.id]})
@@ -1708,18 +1760,16 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         response = self.requestView(label3_url, self.user)
         self.assertEqual(200, response.status_code)
         self.assertEqual(("label",), response.context["actions"])
-        self.assertNotContains(response, reverse("msgs.label_update", args=[label3.id]))  # can't update label
-        self.assertNotContains(response, reverse("msgs.label_delete", args=[label3.id]))  # can't delete label
+        self.assertContentMenu(label3_url, self.user, ["Download", "Usages"])  # no update or delete
 
         # check that test and non-visible messages are excluded, and messages and ordered newest to oldest
         self.assertEqual([msg6, msg3, msg2, msg1], list(response.context["object_list"]))
 
         # check viewing a folder
-        response = self.client.get(reverse("msgs.msg_filter", args=[folder.uuid]))
+        response = self.client.get(folder_url)
         self.assertEqual(200, response.status_code)
         self.assertEqual(("label",), response.context["actions"])
-        self.assertNotContains(response, reverse("msgs.label_update", args=[folder.id]))  # can't update folder
-        self.assertNotContains(response, reverse("msgs.label_delete", args=[folder.id]))  # can't delete folder
+        self.assertContentMenu(folder_url, self.user, ["Download", "Usages"])  # no update or delete
 
         # messages from contained labels are rolled up without duplicates
         self.assertEqual([msg3, msg2, msg1], list(response.context["object_list"]))
@@ -1733,13 +1783,8 @@ class MsgCRUDLTest(TembaTest, CRUDLTestMixin):
         self.assertEqual({msg1, msg6}, set(response.context_data["object_list"]))
 
         # check admin users see edit and delete options for labels and folders
-        response = self.requestView(folder_url, self.admin)
-        self.assertContains(response, reverse("msgs.label_update", args=[folder.id]))
-        self.assertContains(response, reverse("msgs.label_delete", args=[folder.id]))
-
-        response = self.requestView(label1_url, self.admin)
-        self.assertContains(response, reverse("msgs.label_update", args=[label1.id]))
-        self.assertContains(response, reverse("msgs.label_delete", args=[label1.id]))
+        self.assertContentMenu(folder_url, self.admin, ["Edit", "Download", "Usages", "Delete"])
+        self.assertContentMenu(label1_url, self.admin, ["Edit", "Download", "Usages", "Delete"])
 
 
 class BroadcastTest(TembaTest):
@@ -1840,6 +1885,7 @@ class BroadcastTest(TembaTest):
             schedule=Schedule.create_schedule(self.org, self.admin, timezone.now(), Schedule.REPEAT_MONTHLY),
         )
         self.assertEqual("I", broadcast1.status)
+        self.assertEqual(True, broadcast1.is_active)
 
         with patch("temba.mailroom.queue_broadcast") as mock_queue_broadcast:
             broadcast1.send_async()
@@ -1851,11 +1897,21 @@ class BroadcastTest(TembaTest):
 
         self.assertEqual(2, broadcast2.msgs.count())
 
-        broadcast1.release()
-        broadcast2.release()
+        self.assertEqual(2, Broadcast.objects.count())
+        self.assertEqual(2, Msg.objects.count())
+        self.assertEqual(1, Schedule.objects.count())
 
-        self.assertEqual(0, Msg.objects.count())
+        broadcast1.delete(self.admin, soft=True)
+
+        self.assertEqual(2, Broadcast.objects.count())
+        self.assertEqual(2, Msg.objects.count())
+        self.assertEqual(1, Schedule.objects.count())
+
+        broadcast1.delete(self.admin, soft=False)
+        broadcast2.delete(self.admin, soft=False)
+
         self.assertEqual(0, Broadcast.objects.count())
+        self.assertEqual(0, Msg.objects.count())
         self.assertEqual(0, Schedule.objects.count())
 
         with self.assertRaises(AssertionError):
@@ -1956,9 +2012,7 @@ class BroadcastCRUDLTest(TembaTest, CRUDLTestMixin):
         self.login(self.editor)
 
         response = self.client.get(send_url)
-        self.assertEqual(
-            ["omnibox", "text", "schedule", "step_node", "loc"], list(response.context["form"].fields.keys())
-        )
+        self.assertEqual(["omnibox", "text", "step_node", "loc"], list(response.context["form"].fields.keys()))
 
         # initialize form based on a contact
         response = self.client.get(f"{send_url}?c={self.joe.uuid}")
@@ -1999,7 +2053,7 @@ class BroadcastCRUDLTest(TembaTest, CRUDLTestMixin):
                 ),
             },
         )
-        self.assertEqual(302, response.status_code)
+        self.assertEqual(200, response.status_code)
 
         broadcast = Broadcast.objects.get()
         self.assertEqual({"base": "Hey Joe, where you goin?"}, broadcast.text)
@@ -2061,7 +2115,7 @@ class BroadcastCRUDLTest(TembaTest, CRUDLTestMixin):
         self.assertEqual(["text", "step_node", "loc"], list(response.context["form"].fields.keys()))
 
         response = self.client.post(send_url, {"text": "Hurry up", "step_node": color_split["uuid"]})
-        self.assertRedirect(response, reverse("msgs.msg_inbox"))
+        self.assertEqual("hide", response["Temba-Success"])
 
         broadcast = Broadcast.objects.get()
         self.assertEqual(broadcast.text, {"base": "Hurry up"})
@@ -2074,33 +2128,16 @@ class BroadcastCRUDLTest(TembaTest, CRUDLTestMixin):
         response = self.client.post(
             send_url, {"text": "Hurry up", "step_node": "36b2c697-a1d9-47a9-9553-d07d6a725877"}
         )
-        self.assertRedirect(response, reverse("msgs.msg_inbox"))
+        self.assertEqual("hide", response["Temba-Success"])
 
         self.assertEqual(1, Broadcast.objects.count())
 
-    def test_update(self):
-        self.login(self.editor)
-        omnibox = omnibox_serialize(self.org, [], [self.joe], json_encode=True)
-        self.client.post(reverse("msgs.broadcast_send"), dict(omnibox=omnibox, text="Lunch reminder", schedule=True))
-        broadcast = Broadcast.objects.get()
-        url = reverse("msgs.broadcast_update", args=[broadcast.pk])
-
-        response = self.client.get(url)
-        self.assertEqual(list(response.context["form"].fields.keys()), ["message", "omnibox", "loc"])
-
-        omnibox = omnibox_serialize(self.org, [], [self.frank], json_encode=True)
-        response = self.client.post(url, dict(message="Dinner reminder", omnibox=omnibox))
-        self.assertEqual(response.status_code, 302)
-
-        broadcast = Broadcast.objects.get()
-        self.assertEqual(broadcast.text, {"base": "Dinner reminder"})
-        self.assertEqual(broadcast.base_language, "base")
-        self.assertEqual(set(broadcast.contacts.all()), {self.frank})
-
-    def test_schedule_list(self):
-        list_url = reverse("msgs.broadcast_schedule_list")
+    def test_scheduled(self):
+        list_url = reverse("msgs.broadcast_scheduled")
 
         self.assertListFetch(list_url, allow_viewers=True, allow_editors=True, context_objects=[])
+        self.assertContentMenu(list_url, self.user, [])
+        self.assertContentMenu(list_url, self.admin, ["Schedule Message"])
 
         bc1 = self.create_broadcast(
             self.admin,
@@ -2116,21 +2153,143 @@ class BroadcastCRUDLTest(TembaTest, CRUDLTestMixin):
         )
         self.create_broadcast(self.admin, "not scheduled", groups=[self.joe_and_frank])
 
+        bc3 = self.create_broadcast(
+            self.admin,
+            "good afternoon",
+            contacts=[self.frank],
+            schedule=Schedule.create_schedule(self.org, self.admin, timezone.now(), Schedule.REPEAT_DAILY),
+        )
+
+        self.assertListFetch(list_url, allow_viewers=True, allow_editors=True, context_objects=[bc3, bc2, bc1])
+
+        bc3.is_active = False
+        bc3.save()
+
         self.assertListFetch(list_url, allow_viewers=True, allow_editors=True, context_objects=[bc2, bc1])
 
         self.assertListFetch(list_url + "?search=MORN", allow_viewers=True, allow_editors=True, context_objects=[bc1])
 
-    def test_schedule_read(self):
+    def test_scheduled_create(self):
+        create_url = reverse("msgs.broadcast_scheduled_create")
+
+        self.assertCreateFetch(
+            create_url,
+            allow_viewers=False,
+            allow_editors=True,
+            form_fields=["start_datetime", "repeat_period", "repeat_days_of_week", "omnibox", "text"],
+        )
+
+        # try to submit with no values
+        self.assertCreateSubmit(
+            create_url,
+            {},
+            form_errors={
+                "omnibox": "At least one recipient is required.",
+                "text": "This field is required.",
+                "start_datetime": "This field is required.",
+                "repeat_period": "This field is required.",
+            },
+        )
+
+        response = self.assertCreateSubmit(
+            create_url,
+            {
+                "omnibox": omnibox_serialize(self.org, groups=[], contacts=[self.joe, self.frank], json_encode=True),
+                "text": "Daily reminder",
+                "start_datetime": "2021-06-24 12:00",
+                "repeat_period": "W",
+                "repeat_days_of_week": ["M", "F"],
+            },
+            new_obj_query=Broadcast.objects.filter(
+                text={"base": "Daily reminder"}, schedule__repeat_period="W", schedule__repeat_days_of_week="MF"
+            ),
+            success_status=200,
+        )
+
+        bcast = Broadcast.objects.get()
+        self.assertEqual(f"/broadcast/scheduled_read/{bcast.id}/", response["Temba-Success"])
+
+    def test_scheduled_read(self):
+        schedule = Schedule.create_schedule(self.org, self.admin, timezone.now(), "D", repeat_days_of_week="MWF")
+        broadcast = self.create_broadcast(
+            self.admin,
+            "Daily reminder",
+            groups=[self.joe_and_frank],
+            schedule=schedule,
+        )
+
+        read_url = reverse("msgs.broadcast_scheduled_read", args=[broadcast.id])
+
         self.login(self.editor)
 
-        omnibox = omnibox_serialize(self.org, [self.joe_and_frank], [self.joe], json_encode=True)
+        # view with empty Send History
+        response = self.client.get(read_url)
+        self.assertEqual(broadcast, response.context["object"])
+        self.assertEqual([], list(response.context["send_history"]))
+
+        # add some send history
+        sends = []
+        for i in range(3):
+            sends.append(
+                Broadcast.create(
+                    self.org,
+                    self.admin,
+                    "Daily Reminder",
+                    groups=[self.joe_and_frank],
+                    status=Msg.STATUS_QUEUED,
+                    template_state=Broadcast.TEMPLATE_STATE_UNEVALUATED,
+                    parent=broadcast,
+                )
+            )
+
+        # sends are listed newest first
+        response = self.client.get(read_url)
+        self.assertEqual(response.context["object"], broadcast)
+        self.assertEqual(list(reversed(sends)), list(response.context["send_history"]))
+
+    def test_scheduled_update(self):
+        self.login(self.editor)
+        omnibox = omnibox_serialize(self.org, [], [self.joe], json_encode=True)
         self.client.post(reverse("msgs.broadcast_send"), dict(omnibox=omnibox, text="Lunch reminder", schedule=True))
         broadcast = Broadcast.objects.get()
+        url = reverse("msgs.broadcast_scheduled_update", args=[broadcast.pk])
 
-        # view with empty Send History
-        response = self.client.get(reverse("msgs.broadcast_schedule_read", args=[broadcast.pk]))
-        self.assertEqual(response.context["object"], broadcast)
-        self.assertEqual(response.context["object_list"].count(), 0)
+        response = self.client.get(url)
+        self.assertEqual(list(response.context["form"].fields.keys()), ["message", "omnibox", "loc"])
+
+        omnibox = omnibox_serialize(self.org, [], [self.frank], json_encode=True)
+        response = self.client.post(url, dict(message="Dinner reminder", omnibox=omnibox))
+        self.assertEqual(response.status_code, 302)
+
+        broadcast = Broadcast.objects.get()
+        self.assertEqual(broadcast.text, {"base": "Dinner reminder"})
+        self.assertEqual(broadcast.base_language, "base")
+        self.assertEqual(set(broadcast.contacts.all()), {self.frank})
+
+    def test_scheduled_delete(self):
+        self.login(self.editor)
+        schedule = Schedule.create_schedule(self.org, self.admin, timezone.now(), "D", repeat_days_of_week="MWF")
+        broadcast = self.create_broadcast(
+            self.admin,
+            "Daily reminder",
+            groups=[self.joe_and_frank],
+            schedule=schedule,
+        )
+
+        delete_url = reverse("msgs.broadcast_scheduled_delete", args=[broadcast.id])
+
+        # fetch the delete modal
+        response = self.assertDeleteFetch(delete_url, allow_editors=True, as_modal=True)
+        self.assertContains(response, "You are about to delete")
+
+        # submit the delete modal
+        response = self.assertDeleteSubmit(delete_url, object_deactivated=broadcast, success_status=200)
+        self.assertEqual("/broadcast/scheduled/", response["Temba-Success"])
+
+        broadcast = Broadcast.objects.get(id=broadcast.id)
+        schedule = Schedule.objects.get(id=schedule.id)
+
+        self.assertFalse(broadcast.is_active)
 
     def test_missing_contacts(self):
         self.login(self.editor)
@@ -2141,10 +2300,10 @@ class BroadcastCRUDLTest(TembaTest, CRUDLTestMixin):
 
         omnibox = omnibox_serialize(self.org, [], [], json_encode=True)
         response = self.client.post(
-            reverse("msgs.broadcast_update", args=[broadcast.pk]),
+            reverse("msgs.broadcast_scheduled_update", args=[broadcast.pk]),
             dict(omnibox=omnibox, message="Empty contacts", schedule=True),
         )
-        self.assertFormError(response, "form", None, "At least one recipient is required")
+        self.assertFormError(response, "form", None, "At least one recipient is required.")
 
 
 class LabelTest(TembaTest):
@@ -2299,7 +2458,7 @@ class LabelTest(TembaTest):
         label2.toggle_label([msg1], add=True)
         label3.toggle_label([msg3], add=True)
 
-        ExportMessagesTask.create(self.org, self.admin, label=label1)
+        ExportMessagesTask.create(self.org, self.admin, start_date=date.today(), end_date=date.today(), label=label1)
 
         # can't release non-empty folder
         with self.assertRaises(AssertionError):
@@ -2517,7 +2676,6 @@ class SystemLabelTest(TembaTest):
         )
 
         self.assertEqual(("visible", "in", None, None), SystemLabel.get_archive_attributes(SystemLabel.TYPE_SCHEDULED))
-        self.assertEqual(("visible", "in", None, None), SystemLabel.get_archive_attributes(SystemLabel.TYPE_CALLS))
 
     def test_get_counts(self):
         self.assertEqual(
@@ -2530,7 +2688,6 @@ class SystemLabelTest(TembaTest):
                 SystemLabel.TYPE_SENT: 0,
                 SystemLabel.TYPE_FAILED: 0,
                 SystemLabel.TYPE_SCHEDULED: 0,
-                SystemLabel.TYPE_CALLS: 0,
             },
         )
 
@@ -2540,7 +2697,6 @@ class SystemLabelTest(TembaTest):
         self.create_incoming_msg(contact1, "Message 2")
         msg3 = self.create_incoming_msg(contact1, "Message 3")
         msg4 = self.create_incoming_msg(contact1, "Message 4")
-        call1 = self.create_channel_event(self.channel, "tel:0783835001", ChannelEvent.TYPE_CALL_IN, extra={})
         Broadcast.create(self.org, self.user, "Broadcast 2", contacts=[contact1, contact2], status=Msg.STATUS_QUEUED)
         Broadcast.create(
             self.org,
@@ -2560,7 +2716,6 @@ class SystemLabelTest(TembaTest):
                 SystemLabel.TYPE_SENT: 0,
                 SystemLabel.TYPE_FAILED: 0,
                 SystemLabel.TYPE_SCHEDULED: 1,
-                SystemLabel.TYPE_CALLS: 1,
             },
         )
 
@@ -2570,7 +2725,6 @@ class SystemLabelTest(TembaTest):
         Msg.objects.filter(broadcast=bcast1).update(status=Msg.STATUS_PENDING)
 
         msg5, msg6 = tuple(Msg.objects.filter(broadcast=bcast1))
-        self.create_channel_event(self.channel, "tel:0783835002", ChannelEvent.TYPE_CALL_IN, extra={})
         Broadcast.create(
             self.org,
             self.user,
@@ -2589,7 +2743,6 @@ class SystemLabelTest(TembaTest):
                 SystemLabel.TYPE_SENT: 0,
                 SystemLabel.TYPE_FAILED: 0,
                 SystemLabel.TYPE_SCHEDULED: 2,
-                SystemLabel.TYPE_CALLS: 2,
             },
         )
 
@@ -2600,7 +2753,6 @@ class SystemLabelTest(TembaTest):
         msg5.save(update_fields=("status",))
         msg6.status = "S"
         msg6.save(update_fields=("status",))
-        call1.release()
 
         self.assertEqual(
             SystemLabel.get_counts(self.org),
@@ -2612,7 +2764,6 @@ class SystemLabelTest(TembaTest):
                 SystemLabel.TYPE_SENT: 1,
                 SystemLabel.TYPE_FAILED: 1,
                 SystemLabel.TYPE_SCHEDULED: 2,
-                SystemLabel.TYPE_CALLS: 1,
             },
         )
 
@@ -2632,11 +2783,10 @@ class SystemLabelTest(TembaTest):
                 SystemLabel.TYPE_SENT: 1,
                 SystemLabel.TYPE_FAILED: 1,
                 SystemLabel.TYPE_SCHEDULED: 2,
-                SystemLabel.TYPE_CALLS: 1,
             },
         )
 
-        self.assertEqual(SystemLabelCount.objects.all().count(), 28)
+        self.assertEqual(SystemLabelCount.objects.all().count(), 25)
 
         # squash our counts
         squash_msgcounts()
@@ -2651,12 +2801,11 @@ class SystemLabelTest(TembaTest):
                 SystemLabel.TYPE_SENT: 1,
                 SystemLabel.TYPE_FAILED: 1,
                 SystemLabel.TYPE_SCHEDULED: 2,
-                SystemLabel.TYPE_CALLS: 1,
             },
         )
 
         # we should only have one system label per type
-        self.assertEqual(SystemLabelCount.objects.all().count(), 7)
+        self.assertEqual(SystemLabelCount.objects.all().count(), 6)
 
 
 class TagsTest(TembaTest):
@@ -2724,3 +2873,73 @@ class TagsTest(TembaTest):
         # exception if tag not used correctly
         self.assertRaises(ValueError, self.render_template, "{% load sms %}{% render with bob %}{% endrender %}")
         self.assertRaises(ValueError, self.render_template, "{% load sms %}{% render as %}{% endrender %}")
+
+
+class MediaCRUDLTest(CRUDLTestMixin, TembaTest):
+    @mock_uuids
+    def test_upload(self):
+        upload_url = reverse("msgs.media_upload")
+
+        def assert_upload(user, filename, expected_json):
+            self.login(user)
+
+            with open(filename, "rb") as data:
+                response = self.client.post(upload_url, {"file": data, "action": ""}, HTTP_X_FORWARDED_HTTPS="https")
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(expected_json, response.json())
+
+        assert_upload(
+            self.admin,
+            f"{settings.MEDIA_ROOT}/test_media/steve marten.jpg",
+            {
+                "uuid": "b97f69f7-5edf-45c7-9fda-d37066eae91d",
+                "content_type": "image/jpeg",
+                "type": "image/jpeg",
+                "url": f"/media/test_orgs/{self.org.id}/media/b97f/b97f69f7-5edf-45c7-9fda-d37066eae91d/steve%20marten.jpg",
+                "name": "steve marten.jpg",
+                "size": 7461,
+            },
+        )
+        assert_upload(
+            self.editor,
+            f"{settings.MEDIA_ROOT}/test_media/snow.mp4",
+            {
+                "uuid": "14f6ea01-456b-4417-b0b8-35e942f549f1",
+                "content_type": "video/mp4",
+                "type": "video/mp4",
+                "url": f"/media/test_orgs/{self.org.id}/media/14f6/14f6ea01-456b-4417-b0b8-35e942f549f1/snow.mp4",
+                "name": "snow.mp4",
+                "size": 684558,
+            },
+        )
+        assert_upload(
+            self.editor,
+            f"{settings.MEDIA_ROOT}/test_media/bubbles.m4a",
+            {
+                "uuid": "9295ebab-5c2d-4eb1-86f9-7c15ed2f3219",
+                "content_type": "audio/mp4",
+                "type": "audio/mp4",
+                "url": f"/media/test_orgs/{self.org.id}/media/9295/9295ebab-5c2d-4eb1-86f9-7c15ed2f3219/bubbles.m4a",
+                "name": "bubbles.m4a",
+                "size": 46468,
+            },
+        )
+
+        # error message if you upload something unsupported
+        with open(f"{settings.MEDIA_ROOT}/test_imports/simple.xls", "rb") as data:
+            response = self.client.post(upload_url, {"file": data, "action": ""}, HTTP_X_FORWARDED_HTTPS="https")
+            self.assertEqual({"error": "Unsupported file type"}, response.json())
+
+        # error message if upload is too big
+        with patch("temba.msgs.models.Media.MAX_UPLOAD_SIZE", 1024):
+            with open(f"{settings.MEDIA_ROOT}/test_media/snow.mp4", "rb") as data:
+                response = self.client.post(upload_url, {"file": data, "action": ""}, HTTP_X_FORWARDED_HTTPS="https")
+                self.assertEqual({"error": "Limit for file uploads is 0.0009765625 MB"}, response.json())
+
+        self.clear_storage()
+
+    def test_list(self):
+        list_url = reverse("msgs.media_list")
+
+        self.assertStaffOnly(list_url)

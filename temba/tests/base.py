@@ -1,5 +1,6 @@
 import shutil
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,7 +21,7 @@ from temba.archives.models import Archive
 from temba.channels.models import Channel, ChannelEvent, ChannelLog
 from temba.contacts.models import URN, Contact, ContactField, ContactGroup, ContactImport, ContactURN
 from temba.flows.models import Flow, FlowRun, FlowSession, clear_flow_users
-from temba.ivr.models import IVRCall
+from temba.ivr.models import Call
 from temba.locations.models import AdminBoundary, BoundaryAlias
 from temba.msgs.models import Broadcast, Label, Msg
 from temba.orgs.models import Org, OrgRole, User
@@ -151,13 +152,19 @@ class TembaTestMixin:
         """
         shutil.rmtree("%s/%s" % (settings.MEDIA_ROOT, settings.STORAGE_ROOT_DIR), ignore_errors=True)
 
-    def login(self, user, update_last_auth_on: bool = True):
+    def login(self, user, update_last_auth_on: bool = True, choose_org=None):
         self.assertTrue(
             self.client.login(username=user.username, password=self.default_password),
             f"couldn't login as {user.username}:{self.default_password}",
         )
+
         if update_last_auth_on:
             user.record_auth()
+
+        if choose_org:
+            session = self.client.session
+            session.update({"org_id": choose_org.id})
+            session.save()
 
     def import_file(self, filename, site="http://rapidpro.io", substitutions=None):
         data = self.get_import_json(filename, substitutions=substitutions)
@@ -491,14 +498,14 @@ class TembaTestMixin:
 
         return flow
 
-    def create_incoming_call(self, flow, contact, status=IVRCall.STATUS_COMPLETED):
+    def create_incoming_call(self, flow, contact, status=Call.STATUS_COMPLETED):
         """
         Create something that looks like an incoming IVR call handled by mailroom
         """
-        call = IVRCall.objects.create(
+        call = Call.objects.create(
             org=self.org,
             channel=self.channel,
-            direction=IVRCall.DIRECTION_IN,
+            direction=Call.DIRECTION_IN,
             contact=contact,
             contact_urn=contact.get_urn(),
             status=status,
@@ -510,11 +517,17 @@ class TembaTestMixin:
             contact=contact,
             status=FlowSession.STATUS_COMPLETED,
             output_url="http://sessions.com/123.json",
-            connection=call,
+            call=call,
             wait_resume_on_expire=False,
+            ended_on=timezone.now(),
         )
         FlowRun.objects.create(
-            org=self.org, flow=flow, contact=contact, status=FlowRun.STATUS_COMPLETED, session=session
+            org=self.org,
+            flow=flow,
+            contact=contact,
+            status=FlowRun.STATUS_COMPLETED,
+            session=session,
+            exited_on=timezone.now(),
         )
         Msg.objects.create(
             org=self.org,
@@ -529,14 +542,20 @@ class TembaTestMixin:
         )
         ChannelLog.objects.create(
             channel=self.channel,
-            connection=call,
-            request='{"say": "Hello"}',
-            response='{"status": "%s"}' % ("error" if status == IVRCall.STATUS_FAILED else "OK"),
-            url="https://acme-calls.com/reply",
-            method="POST",
-            is_error=status == IVRCall.STATUS_FAILED,
-            response_status=200,
-            description="Looks good",
+            call=call,
+            log_type=ChannelLog.LOG_TYPE_IVR_START,
+            is_error=status == Call.STATUS_FAILED,
+            http_logs=[
+                {
+                    "url": "https://acme-calls.com/reply",
+                    "status_code": 200,
+                    "request": 'POST /reply\r\n\r\n{"say": "Hello"}',
+                    "response": '{"status": "%s"}' % ("error" if status == Call.STATUS_FAILED else "OK"),
+                    "elapsed_ms": 12,
+                    "retries": 0,
+                    "created_on": "2022-01-01T00:00:00Z",
+                }
+            ],
         )
         return call
 
@@ -638,6 +657,7 @@ class TembaTestMixin:
         assignee=None,
         opened_on=None,
         opened_by=None,
+        opened_in=None,
         closed_on=None,
         closed_by=None,
     ):
@@ -653,6 +673,8 @@ class TembaTestMixin:
             status=Ticket.STATUS_CLOSED if closed_on else Ticket.STATUS_OPEN,
             assignee=assignee,
             opened_on=opened_on,
+            opened_by=opened_by,
+            opened_in=opened_in,
             closed_on=closed_on,
         )
         TicketEvent.objects.create(
@@ -741,6 +763,12 @@ class TembaTestMixin:
         self.assertTrue(message, isinstance(body[field], (list, tuple)))
         self.assertIn(message, body[field])
 
+    def assertModalResponse(self, response, *, redirect: str):
+        self.assertEqual(200, response.status_code)
+        self.assertContains(response, "<div class='success-script'>")
+        self.assertEqual(redirect, response.get("Temba-Success"))
+        self.assertEqual(redirect, response.get("REDIRECT"))
+
 
 class TembaTest(TembaTestMixin, SmartminTest):
     """
@@ -756,11 +784,17 @@ class TembaTest(TembaTestMixin, SmartminTest):
             role.group  # noqa
             role.permissions  # noqa
 
+        self.maxDiff = None
+
     def tearDown(self):
         clear_flow_users()
 
     def mockReadOnly(self, assert_models: set = None):
         return MockReadOnly(self, assert_models=assert_models)
+
+    def upload(self, path: str, content_type="text/plain", name=None):
+        with open(path, "rb") as f:
+            return SimpleUploadedFile(name or path, content=f.read(), content_type=content_type)
 
 
 class TembaNonAtomicTest(TembaTestMixin, SmartminTestMixin, TransactionTestCase):
@@ -848,3 +882,28 @@ class MigrationTest(TembaTest):
 
     def setUpBeforeMigration(self, apps):
         pass
+
+
+def mock_uuids(method=None, *, seed=1234):
+    """
+    Convenience decorator to override UUID generation in a test.
+    """
+
+    from temba.utils import uuid
+
+    def _wrap_test_method(f, instance, *args, **kwargs):
+        try:
+            uuid.default_generator = uuid.seeded_generator(seed)
+
+            return f(instance, *args, **kwargs)
+        finally:
+            uuid.default_generator = uuid.real_uuid4
+
+    def actual_decorator(f):
+        @wraps(f)
+        def wrapper(instance, *args, **kwargs):
+            _wrap_test_method(f, instance, *args, **kwargs)
+
+        return wrapper
+
+    return actual_decorator(method) if method else actual_decorator

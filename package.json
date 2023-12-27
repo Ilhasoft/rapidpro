@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@weni/flow-editor-rp": "1.2.0",
-    "@nyaruka/temba-components": "0.28.2",
+    "@nyaruka/temba-components": "0.32.4",
     "colorette": "1.2.2",
     "fa-icons": "0.2.0",
     "is-core-module": "2.4.0",

@@ -15,14 +15,14 @@
     %meta{name:"author", content:"Nyaruka Ltd"}
     %meta{http-equiv:"X-UA-Compatible", content:"IE=10"}
 
-    -if user.is_staff
-      %script{src:"{{ STATIC_URL }}js/urls.js"}
+    -if user.is_beta
+      %script(src="{{ STATIC_URL }}js/urls.js")
 
       :javascript
-
         window.STATIC_URL = "{{STATIC_URL}}";
         function loadNewInterface(force) {
-          var newUrl = mapUrl(window.location.pathname);
+          var location = window.location;
+          var newUrl = mapUrl(location.pathname + (location.search || ""));
           if (newUrl != window.location.pathname) {
             window.location = newUrl;
           } else { 
@@ -104,9 +104,6 @@
       %script{src:"{{ STATIC_URL }}bower/intercooler-js/src/intercooler.js"}
       %script{src:"{{ STATIC_URL }}bower/moment/moment.js"}
       %script{src:"{{ STATIC_URL }}bower/moment-timezone/builds/moment-timezone-with-data.js"}
-      %script{src:"{{ STATIC_URL }}bower/featherlight/src/featherlight.js"}
-      %script{src:"{{ STATIC_URL }}bower/video.js/dist/video.js"}
-      %script{src:"{{ STATIC_URL }}bower/videojs-vjsdownload/dist/videojs-vjsdownload.js"}
       %script{src:"{{ STATIC_URL }}bower/xregexp/xregexp-all.js"}
 
       // expanded nav dropdown
@@ -142,9 +139,6 @@
 
       -compress css
         %link{type:'text/css', rel:'stylesheet', href:"{{ STATIC_URL }}bower/toastr/toastr.css", media:'all'}
-        %link{type:'text/css', rel:'stylesheet', href:"{{ STATIC_URL }}bower/featherlight/src/featherlight.css", media:'all'}
-        %link{type:'text/css', rel:'stylesheet', href:"{{ STATIC_URL }}bower/video.js/dist/video-js.css", media:'all'}
-        %link{type:'text/css', rel:'stylesheet', href:"{{ STATIC_URL }}bower/videojs-vjsdownload/dist/videojs-vjsdownload.css", media:'all'}
 
       -compress css
         %link{type:'text/css', rel:'stylesheet', href:"{{ STATIC_URL }}fonts/icons/style.css", media:'all'}
@@ -266,7 +260,7 @@
   
   -block temba-store
     
-    -if user.is_authenticated
+    -if user.is_authenticated and user_org
       %temba-store(
         completion="/mr/docs/{{ LANGUAGE_CODE }}/editor.json"
         fields="/api/v2/fields.json"
@@ -349,6 +343,42 @@
             %div
               %a.p-1.text-gray-500.underline(href="/policy/")
                 -trans "Privacy"
+                
+    -block post-header
+    <!-- Content -->
+    -block page-container
+      %temba-modax#shared-modax
+      %temba-dialog#shared-dialog
+      .flex-grow
+        .page-content
+          -block suspension
+            {% if user_org.is_suspended %}
+              .px-12.-mt-4
+                -include "org_suspended_include.haml"
+            {% endif %}
+
+          .px-12.py-4
+            -block page-top
+              .flex.items-start
+                .flex.flex-col.mr-5.leading-tight
+                  .page-title
+                    -block title
+                      
+                  .page-subtitle
+                    -block subtitle
+
+                .flex-grow
+                  .flex.justify-end.w-full
+                    -block gear-menu
+                      -include "gear_links_include.haml"
+
+              -block post-title
+
+
+            .mt-6
+              -block content
+            
+            -block post-content   
 
   -trans 'Delete' as title
   %temba-dialog#general-delete-confirmation.hidden{header:"{{title|escapejs}}", primaryButtonName:"{{title|escapejs}}", destructive: "true"}
@@ -466,7 +496,7 @@
       }
 
       function handlePosterize(ele) {
-        posterize(ele.getAttribute('href'));
+        posterize(ele.getAttribute('href') || ele.dataset.href);
       }
 
       function removalConfirmation(removal, buttonName) {

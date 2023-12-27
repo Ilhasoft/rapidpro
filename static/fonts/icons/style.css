@@ -1,10 +1,10 @@
 @font-face {
   font-family: 'temba';
-  src:  url('fonts/temba.eot?hu3jzs');
-  src:  url('fonts/temba.eot?hu3jzs#iefix') format('embedded-opentype'),
-    url('fonts/temba.ttf?hu3jzs') format('truetype'),
-    url('fonts/temba.woff?hu3jzs') format('woff'),
-    url('fonts/temba.svg?hu3jzs#temba') format('svg');
+  src:  url('fonts/temba.eot?41m5i2');
+  src:  url('fonts/temba.eot?41m5i2#iefix') format('embedded-opentype'),
+    url('fonts/temba.ttf?41m5i2') format('truetype'),
+    url('fonts/temba.woff?41m5i2') format('woff'),
+    url('fonts/temba.svg?41m5i2#temba') format('svg');
   font-weight: normal;
   font-style: normal;
   font-display: block;
@@ -25,11 +25,11 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-.icon-weniwebchat:before {
+.icon-instagram:before {
   content: "\e922";
 }
-.icon-instagram:before {
-  content: "\e900";
+.icon-weniwebchat:before {
+  content: "\e91f";
 }
 .icon-menu-2:before {
   content: "\e091";
@@ -764,7 +764,7 @@
   content: "\e90a";
 }
 .icon-vk:before {
-  content: "\e910";
+  content: "\e900";
 }
 .icon-wechat:before {
   content: "\ea94";
@@ -779,5 +779,5 @@
   content: "\e918";
 }
 .icon-vonage:before {
-  content: "\e91f";
+  content: "\e910";
 }

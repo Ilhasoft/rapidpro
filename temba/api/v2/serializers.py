@@ -26,7 +26,7 @@ from temba.msgs.models import Broadcast, Label, Msg
 from temba.orgs.models import Org, OrgRole
 from temba.templates.models import Template, TemplateTranslation
 from temba.tickets.models import Ticket, Ticketer, Topic
-from temba.utils import extract_constants, json, on_transaction_commit
+from temba.utils import json, on_transaction_commit
 from temba.utils.fields import NameValidator
 
 from . import fields
@@ -245,7 +245,7 @@ class BroadcastWriteSerializer(WriteSerializer):
 
 
 class ChannelEventReadSerializer(ReadSerializer):
-    TYPES = extract_constants(ChannelEvent.TYPE_CONFIG)
+    TYPES = {t[0]: t[2] for t in ChannelEvent.TYPE_CONFIG}
 
     type = serializers.SerializerMethodField()
     contact = fields.ContactField()
@@ -515,6 +515,13 @@ class ContactReadSerializer(ReadSerializer):
     blocked = serializers.SerializerMethodField()  # deprecated
     stopped = serializers.SerializerMethodField()  # deprecated
 
+    def __init__(self, *args, context, **kwargs):
+        super().__init__(*args, context=context, **kwargs)
+
+        # remove anon_display field if org isn't anon
+        if not context["org"].is_anon:
+            self.fields.pop("anon_display")
+
     def get_name(self, obj):
         return obj.name if obj.is_active else None
 
@@ -528,7 +535,7 @@ class ContactReadSerializer(ReadSerializer):
         if not obj.is_active:
             return []
 
-        return [urn.api_urn() for urn in obj.get_urns()]
+        return [urn.get_for_api() for urn in obj.get_urns()]
 
     def get_groups(self, obj):
         if not obj.is_active:
@@ -557,6 +564,7 @@ class ContactReadSerializer(ReadSerializer):
         fields = (
             "uuid",
             "name",
+            "anon_display",
             "status",
             "language",
             "urns",
@@ -889,7 +897,7 @@ class FlowReadSerializer(ReadSerializer):
         return self.FLOW_TYPES.get(obj.flow_type)
 
     def get_labels(self, obj):
-        return [{"uuid": lb.uuid, "name": lb.name} for lb in obj.labels.all()]
+        return [{"uuid": str(lb.uuid), "name": lb.name} for lb in obj.labels.all()]
 
     def get_runs(self, obj):
         stats = obj.get_run_stats()
@@ -932,7 +940,7 @@ class FlowRunReadSerializer(ReadSerializer):
     }
 
     flow = fields.FlowField()
-    contact = fields.ContactField(with_urn=True)
+    contact = fields.ContactField(as_summary=True)
     start = serializers.SerializerMethodField()
     path = serializers.SerializerMethodField()
     values = serializers.SerializerMethodField()
@@ -1442,6 +1450,8 @@ class TicketReadSerializer(ReadSerializer):
     topic = fields.TopicField()
     assignee = fields.UserField()
     opened_on = serializers.DateTimeField(default_timezone=pytz.UTC)
+    opened_by = fields.UserField()
+    opened_in = fields.FlowField()
     modified_on = serializers.DateTimeField(default_timezone=pytz.UTC)
     closed_on = serializers.DateTimeField(default_timezone=pytz.UTC)
 
@@ -1459,6 +1469,8 @@ class TicketReadSerializer(ReadSerializer):
             "body",
             "assignee",
             "opened_on",
+            "opened_by",
+            "opened_in",
             "modified_on",
             "closed_on",
         )
@@ -1596,7 +1608,7 @@ class WorkspaceReadSerializer(ReadSerializer):
         return self.DATE_STYLES.get(obj.date_format)
 
     def get_credits(self, obj):
-        return {"used": obj.get_credits_used(), "remaining": obj.get_credits_remaining()}
+        return {"used": -1, "remaining": -1}  # for backwards compatibility
 
     def get_anon(self, obj):
         return obj.is_anon
