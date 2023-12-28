@@ -273,7 +273,7 @@
           <!-- Sidemenu -->
           -if show_sidemenu
             -block sidemenu
-              #unnnic-sidebar.flex-col.h-screen.bg-color-unnnic-snow.unnnic-right-menu-divider
+              #unnnic-sidebar.flex-col.h-screen.bg-color-unnnic-snow.weni-unnnic-right-menu-divider
                 -block info
                 
                 -block side
@@ -322,27 +322,21 @@
         -block nav
           -include 'includes/nav.html'
 
-      -block interface-option
-        -if user.is_staff
-          #preview.text-center.px-3.text-sm.py-1(style='background:rgba(0,0,0,.75);z-index:10000;position:fixed;bottom:0px;width:100%;color:#fff')
-            Preview the
-            %span.linked(onclick="switchToNewInterface()")<
-              new interface
 
-        -if messages
-          -usemacro messages
+      -if messages
+        -usemacro messages
 
 
-        -usemacro post-header
-        <!-- Content -->
-        -usemacro page-container
+      -usemacro post-header
+      <!-- Content -->
+      -usemacro page-container
 
-        -block footer
-          .footer.text-center.py-12.bg-gray-200.text-gray-500
-            {{ request.branding.credits|safe }}
-            %div
-              %a.p-1.text-gray-500.underline(href="/policy/")
-                -trans "Privacy"
+      -block footer
+        .footer.text-center.py-12.bg-gray-200.text-gray-500
+          {{ request.branding.credits|safe }}
+          %div
+            %a.p-1.text-gray-500.underline(href="/policy/")
+              -trans "Privacy"
 
   -trans 'Delete' as title
   %temba-dialog#general-delete-confirmation.hidden{header:"{{title|escapejs}}", primaryButtonName:"{{title|escapejs}}", destructive: "true"}

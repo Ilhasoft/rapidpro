@@ -73,73 +73,67 @@
                         {{link.title}}
                         %span{class:'gear-flag'}
                           {{link.flag}}
+                    -elif link.copyUuid
+                      .hover-linked.font-normal.copyUuid
+                        {{link.title}}
+                        %span{class:'gear-flag'}
+                          {{link.flag}}
                     -else
                       .hover-linked.font-normal{onclick:"{%if link.on_click%}{{link.on_click}}{% else %}goto(event){%endif%}", href:'{{link.href}}', class:'{{ link|gear_link_classes }}', data-success-url:'{{ link.success_url }}'}
                         {{link.title}}
                         %span{class:'gear-flag'}
                           {{link.flag}}
 
-                      -elif link.copyUuid
-                        .hover-linked.font-normal.copyUuid
-                          {{link.title}}
-                          %span{class:'gear-flag'}
-                            {{link.flag}}
-                      -else
-                        .hover-linked.font-normal{onclick:"{%if link.on_click%}{{link.on_click}}{% else %}goto(event){%endif%}", href:'{{link.href}}', class:'{{ link|gear_link_classes }}', data-success-url:'{{ link.success_url }}'}
-                          {{link.title}}
-                          %span{class:'gear-flag'}
-                            {{link.flag}}
-
           %temba-alert.alert-copy.mb-4(level="info")
             -trans "UUID Copied!"
 
 
-      :javascript
-        function showModax(endpoint) {
-        const modax = document.querySelector("temba-modax[id='" + endpoint + "']");
-        if(modax) {
-          modax.open = true;
-        }
-      }
-
-        function copyToClipboard(text) {
-          var dummyElement = document.createElement("textarea");
-          document.body.appendChild(dummyElement);
-          dummyElement.value = text;
-          dummyElement.select();
-          document.execCommand("copy");
-          document.body.removeChild(dummyElement);
-        }
-
-        $(".copyUuid").on('click', function(e){
-          const flowUuid = window.location.pathname.replace('/flow/editor/', '').replace('/', '')
-          copyToClipboard(flowUuid)
-          $('.alert-copy').addClass('slide')
-
-          setTimeout(() => {
-            $('.alert-copy').removeClass('slide')
-          }, 5000)
-        })
-
-        $("#gear-container .gear-delete").on('click', function(e){
-           $("#delete-form").attr('href', $(this).attr('href'));
-           e.stopPropagation();
-
-          var modal = new ConfirmationModal($('.deletion > .title').html(), $('.deletion > .body').html());
-          modal.addClass('alert');
-          modal.setListeners({ onPrimary: function(){
-            $('#delete-form').click();
-          }}, false);
-
-          modal.setPrimaryButton('Remove');
-          modal.show();
-
-          var successUrl = $(this).data('success-url');
-          if (successUrl){
-            modal.addListener('onSuccess', function(){ document.location.href = successUrl; });
+        :javascript
+          function showModax(endpoint) {
+            const modax = document.querySelector("temba-modax[id='" + endpoint + "']");
+            if(modax) {
+              modax.open = true;
+            }
           }
 
-          return false;
-      });
+          function copyToClipboard(text) {
+            var dummyElement = document.createElement("textarea");
+            document.body.appendChild(dummyElement);
+            dummyElement.value = text;
+            dummyElement.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummyElement);
+          }
+
+          $(".copyUuid").on('click', function(e){
+            const flowUuid = window.location.pathname.replace('/flow/editor/', '').replace('/', '')
+            copyToClipboard(flowUuid)
+            $('.alert-copy').addClass('slide')
+
+            setTimeout(() => {
+              $('.alert-copy').removeClass('slide')
+            }, 5000)
+          })
+
+          $("#gear-container .gear-delete").on('click', function(e){
+            $("#delete-form").attr('href', $(this).attr('href'));
+            e.stopPropagation();
+
+            var modal = new ConfirmationModal($('.deletion > .title').html(), $('.deletion > .body').html());
+            modal.addClass('alert');
+            modal.setListeners({ onPrimary: function(){
+              $('#delete-form').click();
+            }}, false);
+
+            modal.setPrimaryButton('Remove');
+            modal.show();
+
+            var successUrl = $(this).data('success-url');
+            if (successUrl){
+              modal.addListener('onSuccess', function(){ document.location.href = successUrl; });
+            }
+
+            return false;
+          });
 
 
