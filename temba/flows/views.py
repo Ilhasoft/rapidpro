@@ -1027,7 +1027,7 @@ class FlowCRUDL(SmartCRUDL):
 
             if self.has_org_perm("flows.flow_results"):
                 menu.add_link(_("Results"), reverse("flows.flow_results", args=[obj.uuid]))
-                menu.add_link(_("Copy UUID"), copyUuid=_("Copy UUID"))
+                # menu.add_link(_("Copy UUID"), copyUuid=_("Copy UUID"))
 
             menu.new_group()
 

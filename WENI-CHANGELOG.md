@@ -1,3 +1,8 @@
+1.7.8-rapidpro-7.5.91
+----------
+* Fix: Frame duplicated macro block usage
+* Update FlowEditor to 1.2.1
+
 1.7.7-rapidpro-7.5.91
 ----------
 * Update: RapidPro to version 7.5.91
