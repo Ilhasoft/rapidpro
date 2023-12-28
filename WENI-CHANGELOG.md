@@ -1,3 +1,7 @@
+1.7.10-rapidpro-7.5.91
+----------
+* Fix: Duplicated footer on ticket and no_nav pages
+
 1.7.9-rapidpro-7.5.91
 ----------
 * Fix: Add redirect key into branding
