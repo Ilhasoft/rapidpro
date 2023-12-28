@@ -1,3 +1,7 @@
+1.7.12-rapidpro-7.5.91
+----------
+* Fix: ChannelLog mask variable
+
 1.7.11-rapidpro-7.5.91
 ----------
 * Fix: Update floweditor manifest import
