@@ -1,3 +1,7 @@
+1.7.11-rapidpro-7.5.91
+----------
+* Fix: Update floweditor manifest import
+
 1.7.10-rapidpro-7.5.91
 ----------
 * Fix: Duplicated footer on ticket and no_nav pages
