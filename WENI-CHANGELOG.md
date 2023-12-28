@@ -1,3 +1,7 @@
+1.7.9-rapidpro-7.5.91
+----------
+* Fix: Add redirect key into branding
+
 1.7.8-rapidpro-7.5.91
 ----------
 * Fix: Frame duplicated macro block usage
