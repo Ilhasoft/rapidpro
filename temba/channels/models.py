@@ -1212,7 +1212,7 @@ class ChannelLog(models.Model):
         secrets = [settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN]
         for secret in secrets:
             if secret and original:
-                original = redact.text(original, secret, mask)
+                original = redact.text(original, secret, HTTPLog.REDACT_MASK)
 
         from temba.request_logs.models import HTTPLog
 
