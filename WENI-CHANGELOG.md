@@ -1,3 +1,7 @@
+1.7.13-rapidpro-7.5.91
+----------
+* Fix: ChannelLog HttpLog import order
+
 1.7.12-rapidpro-7.5.91
 ----------
 * Fix: ChannelLog mask variable
