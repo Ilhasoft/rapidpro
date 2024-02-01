@@ -160,14 +160,13 @@ class WhatsAppType(ChannelType):
             HTTPLog.create_from_exception(HTTPLog.WHATSAPP_CATALOGS_SYNCED, url, e, start, channel=channel)
             return [], False
 
-    def get_api_products(self, channel, catalog):
+    def get_api_products(self, channel, facebook_catalog_id):
         if (
             CONFIG_FB_BUSINESS_ID not in channel.config or CONFIG_FB_ACCESS_TOKEN not in channel.config
         ):  # pragma: no cover
             return [], False
 
-        catalog_id = catalog.facebook_catalog_id
-        if not catalog_id:  # pragma: no cover
+        if not facebook_catalog_id:  # pragma: no cover
             return [], False
 
         start = timezone.now()
@@ -175,7 +174,7 @@ class WhatsAppType(ChannelType):
             # Retrieve the template domain, fallback to the default for channels
             # that have been setup earlier for backwards compatibility
             facebook_product_domain = "graph.facebook.com"
-            url = PRODUCT_LIST_URL % (facebook_product_domain, catalog_id)
+            url = PRODUCT_LIST_URL % (facebook_product_domain, facebook_catalog_id)
             product_data = []
             while url:
                 response = requests.get(

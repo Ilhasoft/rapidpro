@@ -203,7 +203,19 @@ def update_channel_catalogs_status(channel, facebook_catalog_id, is_active):
     if is_active:
         Catalog.objects.filter(channel=channel, facebook_catalog_id=facebook_catalog_id).update(is_active=True)
 
+    sync_products_catalogs(channel, facebook_catalog_id)
+
     return True
+
+def sync_products_catalogs(channel, facebook_catalog_id):
+        try:
+            products_data, valid = channel.get_type().get_api_products(channel, facebook_catalog_id)
+
+            catalog = Catalog.objects.filter(channel=channel, facebook_catalog_id=facebook_catalog_id)
+            update_local_products(catalog, products_data, channel)
+
+        except Exception as e:
+            logger.error(f"Error refreshing WhatsApp catalog and products: {str(e)}", exc_info=True)
 
 
 def set_false_is_active_catalog(channel, catalogs_data):
@@ -327,7 +339,7 @@ def refresh_whatsapp_catalog_and_products():
             for channel in Channel.objects.filter(is_active=True, channel_type="WAC"):
                 for catalog in Catalog.objects.filter(channel=channel, is_active=True):
                     # Fetch products for each catalog
-                    products_data, valid = channel.get_type().get_api_products(channel, catalog)
+                    products_data, valid = channel.get_type().get_api_products(channel, catalog.facebook_catalog_id)
                     if not valid:
                         continue
 
