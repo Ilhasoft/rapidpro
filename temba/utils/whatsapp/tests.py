@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import requests
 from django_redis import get_redis_connection
@@ -496,6 +496,31 @@ class UpdateIsActiveCatalogTestCase(TembaTest):
         update_local_catalogs(channel, catalogs_data)
 
         self.assertEqual(Catalog.objects.count(), 3)
+
+    @patch("temba.utils.whatsapp.tasks.requests.get")
+    def test_update_is_active_catalog_empty_catalog(self, mock_requests_get):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"data": []}
+        mock_requests_get.return_value = mock_response
+
+        # Chamada da função a ser testada
+        class FakeChannel:
+            def __init__(self):
+                self.config = {"wa_waba_id": "123456"}
+                self.catalogs = []
+                self.save = MagicMock()
+
+        # Chamada da função a ser testada
+        channel = FakeChannel()
+        catalogs_data = []  # Adicione dados fictícios conforme necessário
+        result = update_is_active_catalog(channel, catalogs_data)
+
+        # Asserções
+        self.assertEqual(channel.config["catalog_id"], "")
+        self.assertTrue(channel.save.called)
+        self.assertEqual(result, catalogs_data)
+        #self.assertFalse(channel.catalogs.filter.called)
+
 
     @patch("temba.utils.whatsapp.tasks.requests.get")
     def test_update_is_active_catalog_waba_error(self, mock_requests_get):
