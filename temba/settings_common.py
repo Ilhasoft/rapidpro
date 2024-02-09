@@ -1145,6 +1145,8 @@ WHATSAPP_FACEBOOK_BUSINESS_ID = os.environ.get(
 WHATSAPP_APPLICATION_ID = os.environ.get("WHATSAPP_APPLICATION_ID", "")
 WHATSAPP_APPLICATION_SECRET = os.environ.get("WHATSAPP_APPLICATION_SECRET", "")
 WHATSAPP_WEBHOOK_SECRET = os.environ.get("WHATSAPP_WEBHOOK_SECRET", "")
+WHATSAPP_CONFIGURATION_ID = os.environ.get("WHATSAPP_CONFIGURATION_ID", "")
+WHATSAPP_CLOUD_EXTENDED_CREDIT_ID = os.environ.get("WHATSAPP_CLOUD_EXTENDED_CREDIT_ID", "")
 
 # -----------------------------------------------------------------------------------
 # IP Addresses
