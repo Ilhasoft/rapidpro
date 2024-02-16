@@ -1,3 +1,7 @@
+1.7.14-rapidpro-7.5.91
+----------
+* Feat: New Embed Signup process
+
 1.7.13-rapidpro-7.5.91
 ----------
 * Fix: ChannelLog HttpLog import order
