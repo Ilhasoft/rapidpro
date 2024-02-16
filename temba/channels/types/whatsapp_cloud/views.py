@@ -39,7 +39,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         app_id = settings.WHATSAPP_APPLICATION_ID
         app_secret = settings.WHATSAPP_APPLICATION_SECRET
 
-        url = "https://graph.facebook.com/v13.0/debug_token"
+        url = "https://graph.facebook.com/v18.0/debug_token"
         params = {"access_token": f"{app_id}|{app_secret}", "input_token": oauth_user_token}
 
         response = requests.get(url, params=params)
@@ -65,7 +65,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         app_id = settings.WHATSAPP_APPLICATION_ID
         app_secret = settings.WHATSAPP_APPLICATION_SECRET
 
-        url = "https://graph.facebook.com/v13.0/debug_token"
+        url = "https://graph.facebook.com/v18.0/debug_token"
         params = {"access_token": f"{app_id}|{app_secret}", "input_token": oauth_user_token}
 
         response = requests.get(url, params=params)
@@ -90,7 +90,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
                 seen_waba.append(target_waba)
 
-                url = f"https://graph.facebook.com/v13.0/{target_waba}"
+                url = f"https://graph.facebook.com/v18.0/{target_waba}"
                 params = {
                     "access_token": oauth_user_token,
                     "fields": "id,name,currency,message_template_namespace,owner_business_info,account_review_status,on_behalf_of_business_info,primary_funding_id,purchase_order_number,timezone_id",
@@ -102,7 +102,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
                 business_id = target_waba_details["on_behalf_of_business_info"]["id"]
 
-                url = f"https://graph.facebook.com/v13.0/{target_waba}/phone_numbers"
+                url = f"https://graph.facebook.com/v18.0/{target_waba}/phone_numbers"
                 params = {"access_token": oauth_user_token}
                 response = requests.get(url, params=params)
                 response_json = response.json()
@@ -140,6 +140,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         return context
 
     def form_valid(self, form):
+        user_auth = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
         org = self.request.org
 
         number = form.cleaned_data["number"]
@@ -161,6 +162,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             "wa_business_id": business_id,
             "wa_message_template_namespace": message_template_namespace,
             "wa_pin": pin,
+            "wa_user_auth_token": user_auth,
         }
 
         # don't add the same number twice to the same account
@@ -184,9 +186,13 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             return self.form_invalid(form)
 
         # assign system user to WABA
-        url = f"https://graph.facebook.com/v13.0/{waba_id}/assigned_users"
-        params = {"user": f"{settings.WHATSAPP_ADMIN_SYSTEM_USER_ID}", "tasks": ["MANAGE"]}
-        headers = {"Authorization": f"Bearer {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN}"}
+        url = f"https://graph.facebook.com/v18.0/{waba_id}/assigned_users"
+        params = {
+            "user": f"{settings.WHATSAPP_ADMIN_SYSTEM_USER_ID}",
+            "access_token": {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN},
+            "tasks": ["MANAGE"],
+        }
+        headers = {"Authorization": f"Bearer {user_auth}"}
 
         resp = requests.post(url, params=params, headers=headers)
 

@@ -56,21 +56,30 @@ class WhatsAppCloudType(ChannelType):
     def activate(self, channel):
         waba_id = channel.config.get("wa_waba_id")
         wa_pin = channel.config.get("wa_pin")
+        wa_user_auth_token = channel.config.get("wa_user_auth_token")
 
-        headers = {"Authorization": f"Bearer {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN}"}
+        weni_headers = {"Authorization": f"Bearer {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN}"}
+        user_headers = {"Authorization": f"Bearer {wa_user_auth_token}"}
 
         # Subscribe to events
-        url = f"https://graph.facebook.com/v13.0/{waba_id}/subscribed_apps"
-        resp = requests.post(url, headers=headers)
+        url = f"https://graph.facebook.com/v18.0/{waba_id}/subscribed_apps"
+        resp = requests.post(url, headers=user_headers)
 
         if resp.status_code != 200:  # pragma: no cover
             raise ValidationError(_("Unable to subscribe to app to WABA with ID %s" % waba_id))
 
-        # register numbers
-        url = f"https://graph.facebook.com/v13.0/{channel.address}/register"
+        url = f"https://graph.facebook.com/v18.0/{settings.WHATSAPP_CLOUD_EXTENDED_CREDIT_ID}/whatsapp_credit_sharing_and_attach"
+        params = dict(waba_id=waba_id, waba_currency="USD")
+        resp = requests.post(url, params=params, headers=weni_headers)
+
+        if resp.status_code != 200:  # pragma: no cover
+            raise ValidationError(_("Unable to share credit line to WABA with ID %s" % waba_id))
+
+        # # register numbers
+        url = f"https://graph.facebook.com/v18.0/{channel.address}/register"
         data = {"messaging_product": "whatsapp", "pin": wa_pin}
 
-        resp = requests.post(url, data=data, headers=headers)
+        resp = requests.post(url, data=data, headers=weni_headers)
 
         if resp.status_code != 200:  # pragma: no cover
             raise ValidationError(

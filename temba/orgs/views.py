@@ -1748,18 +1748,36 @@ class OrgCRUDL(SmartCRUDL):
 
     class WhatsappCloudConnect(InferOrgMixin, OrgPermsMixin, SmartFormView):
         class WhatsappCloudConnectForm(forms.Form):
-            user_access_token = forms.CharField(min_length=32, required=True)
+            user_access_code = forms.CharField(min_length=32, required=True)
+            user_auth_token = forms.CharField(min_length=32, required=False)
 
             def clean(self):
                 try:
-                    auth_token = self.cleaned_data.get("user_access_token", None)
+                    access_code = self.cleaned_data.get("user_access_code", None)
 
                     app_id = settings.WHATSAPP_APPLICATION_ID
                     app_secret = settings.WHATSAPP_APPLICATION_SECRET
 
-                    url = "https://graph.facebook.com/v13.0/debug_token"
+                    # Exchange user auth code for a permanent token
+                    url = "https://graph.facebook.com/v18.0/oauth/access_token"
+                    params = dict(
+                        client_id=app_id,
+                        client_secret=app_secret,
+                        code=access_code,
+                    )
+
+                    response = requests.get(url, params=params)
+                    if response.status_code != 200:
+                        raise Exception("Failed to exchange user auth code")
+
+                    auth_token = response.json().get("access_token")
                     params = {"access_token": f"{app_id}|{app_secret}", "input_token": auth_token}
 
+                    # Save auth token in form
+                    self.cleaned_data["user_auth_token"] = auth_token
+
+                    # Debug user auth_token to check if we have required permissions
+                    url = "https://graph.facebook.com/v18.0/debug_token"
                     response = requests.get(url, params=params)
                     if response.status_code != 200:  # pragma: no cover
                         raise Exception("Failed to debug user token")
@@ -1790,7 +1808,7 @@ class OrgCRUDL(SmartCRUDL):
             return super().pre_process(request, *args, **kwargs)
 
         def form_valid(self, form):
-            auth_token = form.cleaned_data["user_access_token"]
+            auth_token = form.cleaned_data["user_auth_token"]
 
             # add the credentials to the session
             self.request.session[Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN] = auth_token
@@ -1800,6 +1818,7 @@ class OrgCRUDL(SmartCRUDL):
             context = super().get_context_data(**kwargs)
             context["connect_url"] = reverse("orgs.org_whatsapp_cloud_connect")
             context["whatsapp_app_id"] = settings.WHATSAPP_APPLICATION_ID
+            context["whatsapp_config_id"] = settings.WHATSAPP_CONFIGURATION_ID
 
             claim_error = None
             if context["form"].errors:
