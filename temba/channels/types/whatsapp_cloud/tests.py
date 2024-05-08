@@ -9,6 +9,7 @@ from django.urls import reverse
 from temba.request_logs.models import HTTPLog
 from temba.templates.models import TemplateTranslation
 from temba.tests import MockResponse, TembaTest
+from temba.utils.views import TEMBA_MENU_SELECTION
 
 from ...models import Channel
 from .type import WhatsAppCloudType
@@ -31,7 +32,7 @@ class WhatsAppCloudTypeTest(TembaTest):
         # remove any existing channels
         self.org.channels.update(is_active=False)
 
-        connect_whatsapp_cloud_url = reverse("orgs.org_whatsapp_cloud_connect")
+        connect_whatsapp_cloud_url = reverse("channels.types.whatsapp_cloud.connect")
         claim_whatsapp_cloud_url = reverse("channels.types.whatsapp_cloud.claim")
 
         # make sure plivo is on the claim page
@@ -128,7 +129,7 @@ class WhatsAppCloudTypeTest(TembaTest):
             )
 
             response = self.client.post(connect_whatsapp_cloud_url, dict(user_access_token="X" * 36))
-            self.assertIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+            self.assertIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
             self.assertEqual(response.url, claim_whatsapp_cloud_url)
 
             response = self.client.post(connect_whatsapp_cloud_url, dict(user_access_token="X" * 36), follow=True)
@@ -142,14 +143,13 @@ class WhatsAppCloudTypeTest(TembaTest):
 
         # make sure the token is set on the session
         session = self.client.session
-        session[Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN] = "user-token"
+        session[WhatsAppCloudType.SESSION_USER_TOKEN] = "user-token"
         session.save()
 
-        self.assertIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+        self.assertIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
         with patch("requests.get") as wa_cloud_get:
             with patch("requests.post") as wa_cloud_post:
-
                 wa_cloud_get.side_effect = [
                     # pre-process missing permissions
                     MockResponse(
@@ -169,18 +169,17 @@ class WhatsAppCloudTypeTest(TembaTest):
 
                 response = self.client.get(claim_whatsapp_cloud_url, follow=True)
 
-                self.assertFalse(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN in self.client.session)
+                self.assertFalse(WhatsAppCloudType.SESSION_USER_TOKEN in self.client.session)
 
         # make sure the token is set on the session
         session = self.client.session
-        session[Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN] = "user-token"
+        session[WhatsAppCloudType.SESSION_USER_TOKEN] = "user-token"
         session.save()
 
-        self.assertIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+        self.assertIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
         with patch("requests.get") as wa_cloud_get:
             with patch("requests.post") as wa_cloud_post:
-
                 wa_cloud_get.side_effect = [
                     # pre-process for get
                     MockResponse(
@@ -314,7 +313,7 @@ class WhatsAppCloudTypeTest(TembaTest):
                 response = self.client.post(claim_whatsapp_cloud_url, post_data, follow=True)
                 self.assertEqual(200, response.status_code)
 
-                self.assertNotIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+                self.assertNotIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
                 self.assertEqual(3, wa_cloud_post.call_count)
 
@@ -363,6 +362,10 @@ class WhatsAppCloudTypeTest(TembaTest):
                 response = self.client.get(reverse("channels.types.whatsapp_cloud.request_code", args=(channel.uuid,)))
                 self.assertEqual(200, response.status_code)
 
+                response = self.client.get(reverse("channels.types.whatsapp_cloud.request_code", args=(channel.uuid,)))
+                self.assertEqual(200, response.status_code)
+                self.assertEqual(f"/settings/channels/{channel.uuid}", response.context[TEMBA_MENU_SELECTION])
+
                 # request verification code
                 response = self.client.post(
                     reverse("channels.types.whatsapp_cloud.request_code", args=(channel.uuid,)), dict(), follow=True
@@ -382,20 +385,20 @@ class WhatsAppCloudTypeTest(TembaTest):
                 self.assertEqual(200, response.status_code)
 
                 self.assertEqual("https://graph.facebook.com/v13.0/123123123/register", wa_cloud_post.call_args[0][0])
-                self.assertEqual(
-                    {"messaging_product": "whatsapp", "pin": "111111"}, wa_cloud_post.call_args[1]["data"]
-                )
+                self.assertEqual({"messaging_product": "whatsapp", "pin": "111111"}, wa_cloud_post.call_args[1]["data"])
+
+                response = self.client.get(reverse("channels.types.whatsapp_cloud.verify_code", args=(channel.uuid,)))
+                self.assertEqual(f"/settings/channels/{channel.uuid}", response.context[TEMBA_MENU_SELECTION])
 
         # make sure the token is set on the session
         session = self.client.session
-        session[Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN] = "user-token"
+        session[WhatsAppCloudType.SESSION_USER_TOKEN] = "user-token"
         session.save()
 
-        self.assertIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+        self.assertIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
         with patch("requests.get") as wa_cloud_get:
             with patch("requests.post") as wa_cloud_post:
-
                 wa_cloud_get.side_effect = [
                     # pre-process for get
                     MockResponse(
@@ -450,7 +453,7 @@ class WhatsAppCloudTypeTest(TembaTest):
                                 "id": "111111111111111",
                                 "currency": "USD",
                                 "message_template_namespace": "namespace-uuid",
-                                "on_behalf_of_business_info": {"id": "2222222222222"},
+                                "owner_business_info": {"id": "2222222222222"},
                             }
                         ),
                     ),
@@ -518,7 +521,7 @@ class WhatsAppCloudTypeTest(TembaTest):
                                 "id": "111111111111111",
                                 "currency": "USD",
                                 "message_template_namespace": "namespace-uuid",
-                                "on_behalf_of_business_info": {"id": "2222222222222"},
+                                "owner_business_info": {"id": "2222222222222"},
                             }
                         ),
                     ),
@@ -547,7 +550,7 @@ class WhatsAppCloudTypeTest(TembaTest):
                 self.assertEqual(200, response.status_code)
                 self.assertEqual(
                     response.context["form"].errors["__all__"][0],
-                    "That number is already connected (1234)",
+                    "Number is already connected to this workspace",
                 )
 
     def test_clear_session_token(self):
@@ -558,18 +561,18 @@ class WhatsAppCloudTypeTest(TembaTest):
         response = self.client.get(clear_session_token_url)
         self.assertEqual(200, response.status_code)
 
-        self.assertNotIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+        self.assertNotIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
         session = self.client.session
-        session[Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN] = "user-token"
+        session[WhatsAppCloudType.SESSION_USER_TOKEN] = "user-token"
         session.save()
 
-        self.assertIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+        self.assertIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
         response = self.client.get(clear_session_token_url)
         self.assertEqual(200, response.status_code)
 
-        self.assertNotIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
+        self.assertNotIn(WhatsAppCloudType.SESSION_USER_TOKEN, self.client.session)
 
     @override_settings(WHATSAPP_ADMIN_SYSTEM_USER_TOKEN="WA_ADMIN_TOKEN")
     @patch("requests.get")
