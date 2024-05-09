@@ -7,8 +7,6 @@ from django.views.i18n import JavaScriptCatalog
 
 from temba.channels.views import register, sync
 
-from .views import WeniRedirect
-
 # javascript translation packages
 js_info_dict = {"packages": ()}  # this is empty due to the fact that all translation are in one folder
 
@@ -41,7 +39,6 @@ urlpatterns = [
     re_path(r"^imports/", include("smartmin.csv_imports.urls")),
     re_path(r"^assets/", include("temba.assets.urls")),
     re_path(r"^jsi18n/$", JavaScriptCatalog.as_view(), js_info_dict, name="django.views.i18n.javascript_catalog"),
-    re_path(r"^redirect/", WeniRedirect.as_view(), {}, "weni.redirect"),
 ]
 
 if settings.DEBUG:
@@ -51,33 +48,3 @@ if settings.DEBUG:
 # import any additional urls
 for app in settings.APP_URLS:  # pragma: needs cover
     urlpatterns.append(re_path(r"^", include(app)))
-
-
-def handler500(request):
-    """
-    500 error handler which includes ``request`` in the context.
-
-    Templates: `500.html`
-    Context: None
-    """
-    from sentry_sdk import last_event_id
-
-    from django.http import HttpResponseServerError
-    from django.template import loader
-
-    from .settings import BRANDING, DEFAULT_BRAND
-    from .context_processors_weni import use_weni_layout
-
-    weni_layout = use_weni_layout(request)
-
-    t = loader.get_template("500.html")
-    return HttpResponseServerError(
-        t.render(
-            {
-                "request": request,
-                "brand": BRANDING[DEFAULT_BRAND],
-                "use_weni_layout": weni_layout["use_weni_layout"],
-                "sentry_id": last_event_id(),
-            }
-        )
-    )
