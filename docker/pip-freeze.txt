@@ -43,8 +43,6 @@ chardet==4.0.0 ; python_version >= "2.7" and python_full_version < "3.0.0" or py
     # via
     #   -r ../pip-requires.txt
     #   requests
-colorama==0.4.4 ; (python_version >= "2.7" and python_full_version < "3.0.0") or python_full_version >= "3.5.0"
-    # via -r ../pip-requires.txt
 cryptography==3.4.7 ; python_version >= "3.6"
     # via
     #   -r ../pip-requires.txt

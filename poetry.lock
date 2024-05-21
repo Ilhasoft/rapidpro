@@ -638,9 +638,6 @@ category = "dev"
 optional = false
 python-versions = ">=3.8.0"
 
-[package.extras]
-colors = ["colorama (>=0.4.6)"]
-
 [[package]]
 name = "jmespath"
 version = "1.0.1"
@@ -1551,10 +1548,6 @@ click-repl = [
     {file = "click-repl-0.3.0.tar.gz", hash = "sha256:17849c23dba3d667247dc4defe1757fff98694e90fe37474f3feebb69ced26a9"},
     {file = "click_repl-0.3.0-py3-none-any.whl", hash = "sha256:fb7e06deb8da8de86180a33a9da97ac316751c094c6899382da7feeeeb51b812"},
 ]
-colorama = [
-    {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
-    {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
-]
 colorama = []
 coverage = []
 cryptography = [
@@ -1710,10 +1703,6 @@ platformdirs = [
 polib = [
     {file = "polib-1.2.0-py2.py3-none-any.whl", hash = "sha256:1c77ee1b81feb31df9bca258cbc58db1bbb32d10214b173882452c73af06d62d"},
     {file = "polib-1.2.0.tar.gz", hash = "sha256:f3ef94aefed6e183e342a8a269ae1fc4742ba193186ad76f175938621dbfc26b"},
-]
-prompt-toolkit = [
-    {file = "prompt_toolkit-3.0.43-py3-none-any.whl", hash = "sha256:a11a29cb3bf0a28a387fe5122cdb649816a957cd9261dcedf8c9f1fef33eacf6"},
-    {file = "prompt_toolkit-3.0.43.tar.gz", hash = "sha256:3527b7af26106cbc65a040bcc84839a3566ec1b051bb0bfe953631e704b0ff7d"},
 ]
 prompt-toolkit = []
 psycopg2-binary = []
