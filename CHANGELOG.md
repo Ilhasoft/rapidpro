@@ -1,3 +1,213 @@
+v7.5.129 (2022-12-08)
+-------------------------
+ * Cleanup cron task names
+ * Split task to trim starts and sessions into two separate tasks
+ * Expose all status counts on flows endpoint
+ * Read from FlowRunStatusCount instead of FlowRunCount
+ * Track flow start counts in statement rather than row level trigger
+
+v7.5.128 (2022-12-07)
+-------------------------
+ * Record cron task last stats in redis
+ * Switch from flake8 to ruff
+ * Add data migration to convert exit_type counts to status counts
+
+v7.5.127 (2022-12-07)
+-------------------------
+ * Fix counts for triggers on the menu
+
+v7.5.126 (2022-12-06)
+-------------------------
+ * Add new count model for run statuses managed by by-statement db triggers
+
+v7.5.125 (2022-12-05)
+-------------------------
+ * Tweak index used to find messages to retry so that it includes PENDING messages
+
+v7.5.124 (2022-12-05)
+-------------------------
+ * Update to latest components
+ * More updates for manage pages
+
+v7.5.123 (2022-12-02)
+-------------------------
+ * Fix bulk labelling flows
+
+v7.5.122 (2022-12-02)
+-------------------------
+ * Add user read page
+ * Latest components
+ * Rework notification and incident types to function more like other typed things
+ * Add org timezone to manage page
+ * Remove no longer used group list view
+ * Log celery task completion by default and rework some tasks to return results included in the logging
+ * Refresh browser on field deletion in legacy
+ * Show org plan end as relative time
+ * Don't show location field types as options on deploys where locations aren't enabled
+
+v7.5.121 (2022-11-30)
+-------------------------
+ * Fix loading of notification types
+
+v7.5.120 (2022-11-30)
+-------------------------
+ * Rework notification types to work more like channel types
+ * Update API fields endpoint to use name and type for writes as well as reads
+ * Remove unused field on campaign events write serializer
+ * Change undocumented pinned field on fields endpoint to be featured
+ * Add usages field to fields API endpoint, as well as name and type to replace label and value_type
+ * Add Line error reference URL
+
+v7.5.119 (2022-11-29)
+-------------------------
+ * Fix flow label in list buttons
+ * Fix editor StartSessionForm bug for definitions without exclusions
+ * Remove no longer needed check for plan=parent
+
+v7.5.118 (2022-11-28)
+-------------------------
+ * Add telgram and viber error reference URLs
+ * Make Org.plan optional
+ * Add support to create new workspaces from org chooser
+
+v7.5.117 (2022-11-23)
+-------------------------
+ * Update to latest editor
+ * Drop Org.is_multi_org and Org.is_multi_user which have been replaced by Org.features
+
+v7.5.116 (2022-11-23)
+-------------------------
+ * Fix flow label name display
+
+v7.5.115 (2022-11-22)
+-------------------------
+ * Default to no features on new child orgs
+ * Add features field to org update UI
+
+v7.5.114 (2022-11-22)
+-------------------------
+ * Add Org.features and start writing it
+ * Add error ref url for FBA and IG
+ * Update temba-components to get new link icon
+ * Cleanup msg status constants
+ * Always create new orgs with default plan and only show org_plan for non-child orgs
+
+v7.5.113
+----------
+ * Stop reading Label.label_type and make nullable
+ * Remove all support for labels with parents
+
+v7.5.112
+----------
+ * Remove OrgActivity
+
+v7.5.111
+----------
+ * Delete associated exports when trying to delete message label folders
+
+v7.5.110
+----------
+ * Data migration to flatten msg labels
+
+v7.5.109
+----------
+ * Remove logic for which plan to use for a new org
+
+v7.5.108
+----------
+ * Tweak how get_new_org_plan is called
+ * Move isort config to pyproject
+ * Remove no longer used workspace plan
+
+v7.5.107
+----------
+ * Treat parent and workspace plans as equivalent
+
+v7.5.106
+----------
+ * Tweak flow label flatten migration to not allow new names to exceed 64 chars
+
+v7.5.105
+----------
+ * Display channel logs with earliest at top
+
+v7.5.104
+----------
+ * Remove customized 500 handler
+ * Remove sentry support
+ * Data migration to flatten flow labels
+ * Fix choice of brand for new orgs and move plan selection to classmethod
+ * Catch CSV corrupted errors
+
+v7.5.103
+----------
+ * Some people don't care for icon constants
+ * Remove shim for browsers older than IE9
+ * Remove google analytics settings
+
+v7.5.102
+----------
+ * Remove google analytics
+
+v7.5.101
+----------
+ * Fix Org.promote
+
+v7.5.100
+----------
+ * Add Org.promote utility method
+ * Simplify determining whether to rate limit an API request by looking at request.auth
+ * Data migration to simplify org hierarchies
+
+v7.5.99
+----------
+ * Rename security_settings.py > settings_security.py for consistency
+ * Drop Org.uses_topups, TopUp, and Debit
+ * Update to latest components
+ * Remove unused settings
+ * Remove TopUp, Debit and Org.uses_topups
+
+v7.5.98
+----------
+ * Drop triggers, indexes and functions related to topups
+
+v7.5.97
+----------
+ * Update mailroom_db command to use postgresql 13
+ * Remove User.get_org()
+ * Always explicitly provide org when requesting a user API token
+ * Remove Msg.topup, TopUpCredits, and CreditAlert
+ * Test against latest redis 6.2, elastic 7.17.7 and postgres 13 + 14
+
+v7.5.96
+----------
+ * Remove topup credits squash task from celery beat
+
+v7.5.95
+----------
+ * Update API auth classes to set request.org and use that to set X-Temba-Org header
+ * Use dropdown for brand field on org update form
+ * Remove topups
+
+v7.5.94
+----------
+ * Add missing migration
+ * Remove support for orgs with brand as the host
+ * Remove brand tiers
+
+v7.5.93
+----------
+ * Fix new event modal listeners
+ * Re-add org plan and plan end to update form
+ * Add png of rapidpro logo
+ * Update mailroom_db and test_db commands to set org brand as slug
+ * Add data migration to convert org.brand to be the brand slug
+
+v7.5.92
+----------
+ * Create cla.yml
+ * Rework branding to not require modifying what is in the settings
+
 v7.5.91
 ----------
  * Remove outdated contributor files

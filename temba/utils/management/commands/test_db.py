@@ -248,7 +248,7 @@ class Command(BaseCommand):
                 Org(
                     name=org_names[o % len(org_names)],
                     timezone=self.random.choice(pytz.all_timezones),
-                    brand="rapidpro.io",
+                    brand="rapidpro",
                     country=country,
                     created_on=self.db_begins_on,
                     created_by=superuser,
@@ -262,7 +262,7 @@ class Command(BaseCommand):
         self._log(self.style.SUCCESS("OK") + "\nInitializing orgs... ")
 
         for o, org in enumerate(orgs):
-            org.initialize(topup_size=max((1000 - o), 1) * 1000)
+            org.initialize()
 
             # we'll cache some metadata on each org as it's created to save re-fetching things
             org.cache = {
@@ -291,7 +291,6 @@ class Command(BaseCommand):
                     email, email, password, first_name=u["first_name"], last_name=u["last_name"]
                 )
                 org.add_user(user, u["role"])
-                user.set_org(org)
                 org.cache["users"].append(user)
 
         self._log(self.style.SUCCESS("OK") + "\n")

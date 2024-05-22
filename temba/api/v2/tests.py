@@ -234,7 +234,7 @@ class FieldsTest(TembaTest):
         self.assert_field(
             fields.ContactFieldField(source="test"),
             submissions={"registered": field_obj, "created_on": field_created_on, "xyz": serializers.ValidationError},
-            representations={field_obj: {"key": "registered", "label": "Registered On"}},
+            representations={field_obj: {"key": "registered", "name": "Registered On", "label": "Registered On"}},
         )
 
         self.assert_field(
@@ -511,7 +511,8 @@ class EndpointsTest(TembaTest):
 
         # can fetch campaigns endpoint with valid admin token
         response = request_by_token(campaigns_url, token1.key)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(str(self.org.id), response["X-Temba-Org"])
 
         # but not with surveyor token
         response = request_by_token(campaigns_url, token2.key)
@@ -522,10 +523,11 @@ class EndpointsTest(TembaTest):
 
         # but it can be used to access the contacts endpoint
         response = request_by_token(contacts_url, token2.key)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(200, response.status_code)
 
         response = request_by_basic_auth(contacts_url, self.admin.username, token2.key)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(str(self.org.id), response["X-Temba-Org"])
 
         # simulate the admin user exceeding the rate limit for the v2 scope
         cache.set(f"throttle_v2_{self.org.id}", [time.time() for r in range(10000)])
@@ -599,12 +601,10 @@ class EndpointsTest(TembaTest):
 
         # login as administrator
         self.login(self.admin)
-        token = self.admin.api_token  # generates token for the user
+        token = self.admin.get_api_token(self.org)
         self.assertIsInstance(token, str)
         self.assertEqual(len(token), 40)
-
-        with self.assertNumQueries(0):  # subsequent lookup of token comes from cache
-            self.assertEqual(self.admin.api_token, token)
+        self.assertEqual(token, self.admin.get_api_token(self.org))  # subsequent calls return same token
 
         # browse as HTML
         response = self.fetchHTML(url)
@@ -1255,7 +1255,7 @@ class EndpointsTest(TembaTest):
                 {
                     "uuid": str(event3.uuid),
                     "campaign": {"uuid": str(campaign3.uuid), "name": "Alerts"},
-                    "relative_to": {"key": "created_on", "label": "Created On"},
+                    "relative_to": {"key": "created_on", "name": "Created On", "label": "Created On"},
                     "offset": 6,
                     "unit": "hours",
                     "delivery_hour": 12,
@@ -1266,7 +1266,7 @@ class EndpointsTest(TembaTest):
                 {
                     "uuid": str(event2.uuid),
                     "campaign": {"uuid": str(campaign2.uuid), "name": "Notifications"},
-                    "relative_to": {"key": "registration", "label": "Registration"},
+                    "relative_to": {"key": "registration", "name": "Registration", "label": "Registration"},
                     "offset": 6,
                     "unit": "hours",
                     "delivery_hour": 12,
@@ -1277,7 +1277,7 @@ class EndpointsTest(TembaTest):
                 {
                     "uuid": str(event1.uuid),
                     "campaign": {"uuid": str(campaign1.uuid), "name": "Reminders"},
-                    "relative_to": {"key": "registration", "label": "Registration"},
+                    "relative_to": {"key": "registration", "name": "Registration", "label": "Registration"},
                     "offset": 1,
                     "unit": "days",
                     "delivery_hour": -1,
@@ -2660,12 +2660,24 @@ class EndpointsTest(TembaTest):
             [
                 {
                     "key": "registered",
+                    "name": "Registered On",
+                    "type": "datetime",
+                    "featured": False,
+                    "priority": 0,
+                    "usages": {"campaign_events": 1, "flows": 0, "groups": 0},
                     "label": "Registered On",
                     "value_type": "datetime",
-                    "pinned": False,
-                    "priority": 0,
                 },
-                {"key": "nick_name", "label": "Nick Name", "value_type": "text", "pinned": False, "priority": 0},
+                {
+                    "key": "nick_name",
+                    "name": "Nick Name",
+                    "type": "text",
+                    "featured": False,
+                    "priority": 0,
+                    "usages": {"campaign_events": 0, "flows": 0, "groups": 0},
+                    "label": "Nick Name",
+                    "value_type": "text",
+                },
             ],
         )
 
@@ -2673,35 +2685,54 @@ class EndpointsTest(TembaTest):
         response = self.fetchJSON(url, "key=nick_name")
         self.assertEqual(
             response.json()["results"],
-            [{"key": "nick_name", "label": "Nick Name", "pinned": False, "value_type": "text", "priority": 0}],
+            [
+                {
+                    "key": "nick_name",
+                    "name": "Nick Name",
+                    "type": "text",
+                    "featured": False,
+                    "priority": 0,
+                    "usages": {"campaign_events": 0, "flows": 0, "groups": 0},
+                    "label": "Nick Name",
+                    "value_type": "text",
+                }
+            ],
         )
 
         # try to create empty field
         response = self.postJSON(url, None, {})
-        self.assertResponseError(response, "label", "This field is required.")
-        self.assertResponseError(response, "value_type", "This field is required.")
+        self.assertResponseError(response, "non_field_errors", "Field 'name' is required.")
+
+        # try to create field without type
+        response = self.postJSON(url, None, {"name": "goats"})
+        self.assertResponseError(response, "non_field_errors", "Field 'type' is required.")
 
         # try again with some invalid values
+        response = self.postJSON(url, None, {"name": "!@#$%", "type": "video"})
+        self.assertResponseError(response, "name", "Can only contain letters, numbers and hypens.")
+        self.assertResponseError(response, "type", '"video" is not a valid choice.')
+
+        # try again with some invalid values using deprecated field names
         response = self.postJSON(url, None, {"label": "!@#$%", "value_type": "video"})
         self.assertResponseError(response, "label", "Can only contain letters, numbers and hypens.")
         self.assertResponseError(response, "value_type", '"video" is not a valid choice.')
 
         # try again with a label that would generate an invalid key
-        response = self.postJSON(url, None, {"label": "UUID", "value_type": "text"})
-        self.assertResponseError(response, "label", 'Generated key "uuid" is invalid or a reserved name.')
+        response = self.postJSON(url, None, {"name": "UUID", "type": "text"})
+        self.assertResponseError(response, "name", 'Generated key "uuid" is invalid or a reserved name.')
 
         # try again with a label that's already taken
         response = self.postJSON(url, None, {"label": "nick name", "value_type": "text"})
         self.assertResponseError(response, "label", "This field must be unique.")
 
         # create a new field
-        response = self.postJSON(url, None, {"label": "Age", "value_type": "numeric"})
+        response = self.postJSON(url, None, {"name": "Age", "type": "number"})
         self.assertEqual(response.status_code, 201)
 
         age = ContactField.user_fields.get(org=self.org, name="Age", value_type="N", is_active=True)
 
         # update a field by its key
-        response = self.postJSON(url, "key=age", {"label": "Real Age", "value_type": "datetime"})
+        response = self.postJSON(url, "key=age", {"name": "Real Age", "type": "datetime"})
         self.assertEqual(response.status_code, 200)
 
         age.refresh_from_db()
@@ -2709,18 +2740,16 @@ class EndpointsTest(TembaTest):
         self.assertEqual(age.value_type, "D")
 
         # try to update with key of deleted field
-        response = self.postJSON(url, "key=deleted", {"label": "Something", "value_type": "text"})
+        response = self.postJSON(url, "key=deleted", {"name": "Something", "type": "text"})
         self.assert404(response)
 
         # try to update with non-existent key
-        response = self.postJSON(url, "key=not_ours", {"label": "Something", "value_type": "text"})
+        response = self.postJSON(url, "key=not_ours", {"name": "Something", "type": "text"})
         self.assert404(response)
 
         # try to change type of date field used by campaign event
-        response = self.postJSON(url, "key=registered", {"label": "Registered", "value_type": "text"})
-        self.assertResponseError(
-            response, "value_type", "Can't change type of date field being used by campaign events."
-        )
+        response = self.postJSON(url, "key=registered", {"name": "Registered", "type": "text"})
+        self.assertResponseError(response, "type", "Can't change type of date field being used by campaign events.")
 
         CampaignEvent.objects.all().delete()
         ContactField.objects.filter(is_system=False).delete()
@@ -2775,7 +2804,7 @@ class EndpointsTest(TembaTest):
                     "archived": True,
                     "labels": [],
                     "expires": 720,
-                    "runs": {"active": 0, "completed": 0, "interrupted": 0, "expired": 0},
+                    "runs": {"active": 0, "waiting": 0, "completed": 0, "interrupted": 0, "expired": 0, "failed": 0},
                     "results": [
                         {
                             "key": "color",
@@ -2807,7 +2836,7 @@ class EndpointsTest(TembaTest):
                     "archived": False,
                     "labels": [{"uuid": str(reporting.uuid), "name": "Reporting"}],
                     "expires": 10080,
-                    "runs": {"active": 0, "completed": 1, "interrupted": 0, "expired": 0},
+                    "runs": {"active": 0, "waiting": 0, "completed": 1, "interrupted": 0, "expired": 0, "failed": 0},
                     "results": [
                         {
                             "key": "color",
@@ -2827,7 +2856,7 @@ class EndpointsTest(TembaTest):
                     "archived": False,
                     "labels": [],
                     "expires": 10080,
-                    "runs": {"active": 0, "completed": 0, "interrupted": 0, "expired": 0},
+                    "runs": {"active": 0, "waiting": 0, "completed": 0, "interrupted": 0, "expired": 0, "failed": 0},
                     "results": [
                         {
                             "key": "name",
