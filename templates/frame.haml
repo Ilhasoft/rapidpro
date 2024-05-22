@@ -55,14 +55,6 @@
 
     :javascript
 
-      // Weni's addition to send a message to Connect about our current route
-      {% if use_weni_layout %}
-        window.parent.postMessage({
-          event: 'changePathname',
-          pathname: window.location.pathname,
-        }, "*")
-      {% endif %}
-
       window.supportEmail = '{{brand.support_email}}';
 
       function conditionalLoad(local, remote) {
@@ -83,15 +75,6 @@
 
     -# this view make it possible to process translations from javascript land
     <script src="{% url 'django.views.i18n.javascript_catalog' %}"></script>
-
-    -if logrocket_id and parent_iframe_domain
-      <!-- LogRocket Tracking -->
-      <script src="https://cdn.lr-in.com/LogRocket.min.js" crossorigin="anonymous"></script>
-      <script>window.LogRocket && window.LogRocket.init("{{logrocket_id}}", {mergeIframes: true, parentDomain: "{{parent_iframe_domain}}"});</script>
-
-    -if use_weni_layout
-      <script defer src="//app.helphero.co/embed/m7dO0to4OK"></script>
-
     -compress js
       :javascript
         var static_url = '{{STATIC_URL}}';
@@ -172,34 +155,12 @@
       -block extra-less
       -block extra-style
 
-      :css
-        {% if show_sidemenu and use_weni_layout %}
-          #unnnic-content {
-            padding-left: 200px;
-          }
-        {% endif %}
-
     -for incl in brand.head_includes
       -include incl
 
 {% block body %}
 
 %body#pageBody.bg-gradient
-
-  -if not use_weni_layout and user_org.config.date_billing_expired and user_org.config.date_org_will_suspend
-    .weni-announcement
-      %span.weni-announcement__content
-        Dear customer, we did not identify the payment of the invoice that was due on day
-        %span.weni-announcement__content--highlight
-          {{user_org.config.date_billing_expired}}.
-        Please contact our finance department at
-        %span.weni-announcement__content--highlight
-          invoice@weni.ai
-        to send proof of payment, otherwise your services will be
-        %span.weni-announcement__content--highlight
-          suspended on day {{user_org.config.date_org_will_suspend}}.
-      %button.weni-announcement__collapse
-        %i.icon-close
 
   -if COMPONENTS_DEV_MODE
     <script type="module">
@@ -216,18 +177,7 @@
         fields="/api/v2/fields.json"
         globals="/api/v2/globals.json")
 
-  -if use_weni_layout
-    -block weni-side
-      .flex.flex-col{style: "height: inherit"}
-        .flex.flex-row.h-full
-          <!-- Sidemenu -->
-          -if show_sidemenu
-            -block sidemenu
-              #unnnic-sidebar.flex-col.h-screen.bg-color-unnnic-snow.weni-unnnic-right-menu-divider
-                -block info
-                
-                -block side
-                  -include 'weni/side.html'
+  .flex.flex-col.h-full
 
     -block header
       <!-- Header -->
@@ -236,10 +186,8 @@
           .pull-right.toggle
             .icon-menu-2
 
-          #unnnic-content.flex.flex-col.w-full
-            -usemacro post-header
-            <!-- Content -->
-            -usemacro page-container
+          .org
+            {{ user_org.name }}
 
           .other-orgs.hide
             -for org in user_orgs
@@ -253,32 +201,89 @@
                 .org.text-primary
                   <a onclick="handleNewWorkspaceClicked(event)">{% trans "New Workspace" %}</a>
 
-        #header
-          &nbsp;
+      #header
+        &nbsp;
 
 
-        %a#big-logo.logo.icon-logo{href:"{% if user.is_authenticated %}{% url 'msgs.msg_inbox' %}{% else %}/{% endif %}", title:"{{brand.name}}", class:"hover:no-underline"}
-          .name
-            {{brand.name}}
+      %a#big-logo.logo.icon-logo{href:"{% if user.is_authenticated %}{% url 'msgs.msg_inbox' %}{% else %}/{% endif %}", title:"{{brand.name}}", class:"hover:no-underline"}
+        .name
+          {{brand.name}}
 
-        -block nav
-          -include 'includes/nav.html'
+      -block nav
+        -include 'includes/nav.html'
+
+    -block interface-option
+      -if user.is_beta
+        #preview.text-center.px-3.text-sm.py-1(style='background:rgba(0,0,0,.75);z-index:10000;position:fixed;bottom:0px;width:100%;color:#fff')
+          Preview the
+          %span.linked(onclick="switchToNewInterface()" style="color:#43b1ff")<
+            new interface
+
+    -if messages
+      -block messages
+        -if messages
+          -for msg in messages
+            %div{class:"alert alert-{{ message.tags }}"}
+              {{ msg }}
 
 
-      -if messages
-        -usemacro messages
+    -block post-header
+    <!-- Content -->
+    -block page-container
+      %temba-modax#shared-modax
+      %temba-dialog#shared-dialog
+      .flex-grow
+        .page-content
+          -block suspension
+            {% if user_org.is_suspended %}
+              .px-12.-mt-4
+                -include "org_suspended_include.haml"
+            {% endif %}
+
+          .px-12.py-4
+            -block page-top
+              .flex.items-start
+                .flex.flex-col.mr-5.leading-tight
+                  .page-title
+                    -block title
+                      
+                  .page-subtitle
+                    -block subtitle
+
+                .flex-grow
+                  .flex.justify-end.w-full
+                    -block gear-menu
+                      -include "gear_links_include.haml"
+
+              -block post-title
 
 
-      -usemacro post-header
-      <!-- Content -->
-      -usemacro page-container
+            .mt-6
+              -block content
+            
+            -block post-content
 
       -block footer
-        .footer.text-center.py-12.bg-gray-200.text-gray-500
-          {{ request.branding.credits|safe }}
-          %div
-            %a.p-1.text-gray-500.underline(href="/policy/")
-              -trans "Privacy"
+        .text-center.text-gray-500.pb-10.-mt-8.bg-gray-200.pt-4
+          :plain
+            <!--
+              This software is licensed under AGPL v3. Please review the full license:
+              https://github.com/rapidpro/rapidpro/blob/main/LICENSE
+              
+              WARNING!
+
+              Hey, we get it. This is neat software, and it would be great to slap
+              the name of your company on it. While you can copyright your modifications,
+              which they themselves require careful consideration of the AGPL license,
+              you cannot claim copyright for work that is not yours. Any modified source code
+              must be shared publicly. Any related copyrights of such work much make notice
+              that it is based on this AGPL software, and also include the below notice.
+              
+              DO NOT illegally claim copyright of this work. If you want to edit the 
+              presentation of the below copyright, please contact us at legal@textit.com 
+              to discuss attribution requirements for this software.
+            -->
+            Copyright © 2012-2022 TextIt, UNICEF. All rights reserved.    
 
   -trans 'Delete' as title
   %temba-dialog#general-delete-confirmation.hidden{header:"{{title|escapejs}}", primaryButtonName:"{{title|escapejs}}", destructive: "true"}
@@ -301,90 +306,6 @@
           var anon_org = false;
         {% endif %}
       {% endif %}
-
-      function inIframe () {
-        try {
-          if (window.self !== window.top) {
-            $(".org-header").hide();
-          } else {
-            $(".org-header").show();
-          }
-        } catch (e) {
-          $(".org-header").hide();
-        }
-      }
-
-      function enableLinkTranslations() {
-        let connectBaseURL = '';
-
-        function translateAllLinks() {
-          if (!connectBaseURL) {
-            return;
-          }
-
-          const url = new URL(connectBaseURL);
-
-          document.querySelectorAll('a[href]').forEach((link) => {
-            const internalHref = link.getAttribute('internal-href') || link.getAttribute('href');
-
-            if (['http://', 'https://'].some((initial) => internalHref.startsWith(initial))) {
-              return;
-            }
-
-            const dashHref = connectBaseURL + internalHref;
-
-            if (link.translateLinkConnect) {
-              if (link.getAttribute('href') === dashHref) {
-                return;
-              }
-              link.removeEventListener('click', link.translateLinkConnect);
-            }
-
-            link.setAttribute('internal-href', internalHref);
-            link.setAttribute('href', dashHref);
-            link.addEventListener(
-              'click',
-              (link.translateLinkConnect = () => {
-                if(link.getAttribute('target') !== '_blank') {
-                  link.setAttribute('href', internalHref);
-                  setTimeout(() => {
-                    link.setAttribute('href', dashHref);
-                  }, 0);
-                }
-              }),
-            );
-          });
-        };
-
-        function initializeObserver() {
-          const targetNode = document.getElementById('pageBody');
-          const config = { attributes: true, childList: true, subtree: true };
-
-          const callback = function(mutationList, observer) {
-            mutationList.forEach((mutation) => {
-                if (mutation.type === 'childList') {
-                  translateAllLinks();
-                }
-            })
-          };
-
-          const observer = new MutationObserver(callback);
-          observer.observe(targetNode, config);
-        }
-
-        window.addEventListener('message', (event) => {
-          const eventName = event.data && event.data.event;
-          if (eventName === 'setConnectBaseURL') {
-            connectBaseURL = event.data.connectBaseURL;
-            translateAllLinks();
-            initializeObserver();
-          }
-        });
-
-        window.parent.postMessage({ 
-          event: 'getConnectBaseURL'
-        }, '*');
-      }
 
       function posterize(href) {
         var url = $.url(href);
@@ -521,43 +442,6 @@
       });
 
       $(document).ready(function() {
-
-        {% if use_weni_layout %}
-          inIframe();
-
-          enableLinkTranslations();
-
-          HelpHero.anonymous();
-
-          HelpHero.on('tour_completed', function(event, info) {
-            // Weni Flows Guide Tour Identifier
-            if (info.tour.id === 'PBw8f8pZc2') {
-              // Start Integrations Menu selection Tour at Dash
-              window.parent.postMessage({ 
-                  event: 'startHelpHeroTour',
-                  tourId: 'huNqgL9PTP'
-              }, '*');
-            }
-          })
-
-        {% endif %}
-
-        function announcementCollapse() {
-          $('.weni-announcement').hide();
-          $('#menu').addClass('collapsed')
-          $('.org-header').addClass('collapsed')
-        }
-
-        const announcementState = sessionStorage.getItem('weni-announcement-state');
-        if (announcementState === "false") {
-          announcementCollapse()
-        }
-
-        $(".weni-announcement__collapse").live('click', (event) => {
-          sessionStorage.setItem('weni-announcement-state', false);
-          announcementCollapse()
-        })
-
         if (navigator.appVersion.indexOf("Win")!=-1) {
           $("html").addClass("windows");
         }
