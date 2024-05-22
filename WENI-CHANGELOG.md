@@ -1,3 +1,7 @@
+1.7.14-rapidpro-7.5.129
+----------
+* Update RapidPro with version 7.5.129
+
 1.7.14-rapidpro-7.5.91
 ----------
 * Feat: New Embed Signup process
