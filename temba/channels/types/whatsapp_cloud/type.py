@@ -26,7 +26,7 @@ class WhatsAppCloudType(ChannelType):
 
     code = "WAC"
     category = ChannelType.Category.SOCIAL_MEDIA
-    beta_only = True
+    beta_only = False
 
     courier_url = r"^wac/receive"
 
@@ -42,6 +42,9 @@ class WhatsAppCloudType(ChannelType):
     max_length = 4096
 
     redact_values = (settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN,)
+
+    def is_available_to(self, user):
+        return True, True
 
     def get_urls(self):
         return [
