@@ -1,3 +1,7 @@
+1.7.18-rapidpro-7.5.129
+----------
+* Fix branding
+
 1.7.17-rapidpro-7.5.129
 ----------
 * Fix branding hosts
