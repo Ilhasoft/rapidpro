@@ -1,3 +1,7 @@
+1.7.16-rapidpro-7.5.129
+----------
+* Fix compress and branding
+
 1.7.15-rapidpro-7.5.129
 ----------
 * Fix invalid template name
