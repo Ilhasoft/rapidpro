@@ -33,6 +33,7 @@ brand_info = env.dict(
     default={
         "slug": "rapidpro",
         "name": "RapidPro",
+        "title": "RapidPro",
         "org": "UNICEF",
         "email": "join@rapidpro.io",
         "domain": "app.rapidpro.io",
@@ -40,6 +41,7 @@ brand_info = env.dict(
         "allow_signups": True,
         "description": "Visually build nationally scalable mobile applications from anywhere in the world.",
         "credits": "Copyright &copy; 2012-2017 UNICEF, Nyaruka. All Rights Reserved.",
+        "hosts": ["localhost"]
     },
 )
 
@@ -50,12 +52,13 @@ brand_info[
 
 brand_info["inactive_threshold"] = env.int("BRANDING_INACTIVE_THRESHOLD", default=90)
 
-DEFAULT_BRAND = env("DEFAULT_BRAND", default="rapidpro.io")
-BRANDING = {
-    DEFAULT_BRAND: {
+DEFAULT_BRAND = env("DEFAULT_BRAND", default="rapidpro")
+BRANDS = [
+    {
         "slug": brand_info.get("slug"),
         "name": brand_info.get("name"),
         "org": brand_info.get("org"),
+        "hosts": brand_info.get("hosts"),
         "colors": env.dict("BRANDING_COLORS", default=dict(primary="#0c6596")),
         "styles": env.list("BRANDING_STYLES", default=["brands/rapidpro/font/style.css"]),
         "welcome_topup": 1000,
@@ -81,7 +84,7 @@ BRANDING = {
         "inactive_threshold": brand_info.get("inactive_threshold"),
         "redirect": brand_info.get("redirect"),
     }
-}
+]
 HOSTNAME = DEFAULT_BRAND
 
 # VARIABLES TO API REQUISITIONS
