@@ -457,11 +457,11 @@ class Flow(LegacyUUIDMixin, TembaModel, DependencyMixin):
 
     def get_attrs(self):
         icon = (
-            "message-square"
+            "icon.flow_message"
             if self.flow_type == Flow.TYPE_MESSAGE
-            else "phone"
+            else "icon.flow_ivr"
             if self.flow_type == Flow.TYPE_VOICE
-            else "flow"
+            else "icon.flow"
         )
 
         return {"icon": icon, "type": self.flow_type, "uuid": self.uuid}
@@ -665,17 +665,20 @@ class Flow(LegacyUUIDMixin, TembaModel, DependencyMixin):
         self.save_revision(user, definition)
 
     def get_run_stats(self):
-        totals_by_exit = FlowRunCount.get_totals(self)
-        total_runs = sum(totals_by_exit.values())
-        completed = totals_by_exit.get(FlowRun.EXIT_TYPE_COMPLETED, 0)
+        totals_by_status = FlowRunStatusCount.get_totals(self)
+        total_runs = sum(totals_by_status.values())
+        completed = totals_by_status.get(FlowRun.STATUS_COMPLETED, 0)
 
         return {
             "total": total_runs,
-            "active": totals_by_exit.get(None, 0),
-            "completed": completed,
-            "expired": totals_by_exit.get(FlowRun.EXIT_TYPE_EXPIRED, 0),
-            "interrupted": totals_by_exit.get(FlowRun.EXIT_TYPE_INTERRUPTED, 0),
-            "failed": totals_by_exit.get(FlowRun.EXIT_TYPE_FAILED, 0),
+            "status": {
+                "active": totals_by_status.get(FlowRun.STATUS_ACTIVE, 0),
+                "waiting": totals_by_status.get(FlowRun.STATUS_WAITING, 0),
+                "completed": completed,
+                "expired": totals_by_status.get(FlowRun.STATUS_EXPIRED, 0),
+                "interrupted": totals_by_status.get(FlowRun.STATUS_INTERRUPTED, 0),
+                "failed": totals_by_status.get(FlowRun.STATUS_FAILED, 0),
+            },
             "completion": int(completed * 100 // total_runs) if total_runs else 0,
         }
 
@@ -1047,6 +1050,7 @@ class Flow(LegacyUUIDMixin, TembaModel, DependencyMixin):
         self.path_counts.all().delete()
         self.node_counts.all().delete()
         self.exit_counts.all().delete()
+        self.status_counts.all().delete()
         self.labels.clear()
 
         super().delete()
@@ -1608,24 +1612,51 @@ class FlowNodeCount(SquashableModel):
         return {str(t[0]): t[1] for t in totals if t[1]}
 
 
+class FlowRunStatusCount(SquashableModel):
+    """
+    Maintains counts of different statuses of flow runs for all flows. These are inserted via triggers on the database.
+    """
+
+    squash_over = ("flow_id", "status")
+
+    flow = models.ForeignKey(Flow, on_delete=models.PROTECT, related_name="status_counts")
+    status = models.CharField(max_length=1, choices=FlowRun.STATUS_CHOICES)
+    count = models.IntegerField(default=0)
+
+    @classmethod
+    def get_squash_query(cls, distinct_set):
+        sql = r"""
+        WITH removed as (
+            DELETE FROM flows_flowrunstatuscount WHERE "flow_id" = %s AND "status" = %s RETURNING "count"
+        )
+        INSERT INTO flows_flowrunstatuscount("flow_id", "status", "count", "is_squashed")
+        VALUES (%s, %s, GREATEST(0, (SELECT SUM("count") FROM removed)), TRUE);
+        """
+
+        return sql, (distinct_set.flow_id, distinct_set.status) * 2
+
+    @classmethod
+    def get_totals(cls, flow):
+        totals = list(cls.objects.filter(flow=flow).values_list("status").annotate(total=Sum("count")))
+        return {t[0]: t[1] for t in totals}
+
+    class Meta:
+        index_together = ("flow", "status")
+
+
 class FlowRunCount(SquashableModel):
     """
-    Maintains counts of different states of exit types of flow runs on a flow. These are calculated
-    via triggers on the database.
+    TODO remove from db triggers once we're confident FlowRunStatusCount is correct, then drop
     """
 
     squash_over = ("flow_id", "exit_type")
 
     flow = models.ForeignKey(Flow, on_delete=models.PROTECT, related_name="exit_counts")
-
-    # the type of exit
     exit_type = models.CharField(null=True, max_length=1, choices=FlowRun.EXIT_TYPE_CHOICES)
-
-    # the number of runs that exited with that exit type
     count = models.IntegerField(default=0)
 
     @classmethod
-    def get_squash_query(cls, distinct_set):
+    def get_squash_query(cls, distinct_set):  # pragma: no cover
         if distinct_set.exit_type:
             sql = """
             WITH removed as (
@@ -1652,11 +1683,6 @@ class FlowRunCount(SquashableModel):
             params = (distinct_set.flow_id,) * 2
 
         return sql, params
-
-    @classmethod
-    def get_totals(cls, flow):
-        totals = list(cls.objects.filter(flow=flow).values_list("exit_type").annotate(replies=Sum("count")))
-        return {t[0]: t[1] for t in totals}
 
     class Meta:
         index_together = ("flow", "exit_type")
@@ -2118,27 +2144,25 @@ class FlowLabel(TembaModel):
     """
 
     org = models.ForeignKey(Org, on_delete=models.PROTECT, related_name="flow_labels")
+
+    # TODO drop
     parent = models.ForeignKey("FlowLabel", on_delete=models.PROTECT, null=True, related_name="children")
 
     @classmethod
-    def create(cls, org, user, name: str, parent=None):
+    def create(cls, org, user, name: str):
         assert cls.is_valid_name(name), f"'{name}' is not a valid flow label name"
         assert not org.flow_labels.filter(name__iexact=name).exists()
 
-        return cls.objects.create(org=org, name=name, parent=parent, created_by=user, modified_by=user)
+        return cls.objects.create(org=org, name=name, created_by=user, modified_by=user)
 
-    def get_flows_count(self):
+    def get_flow_count(self):
         """
         Returns the count of flows tagged with this label or one of its children
         """
         return self.get_flows().count()
 
     def get_flows(self):
-        return (
-            Flow.objects.filter(Q(labels=self) | Q(labels__parent=self))
-            .filter(is_active=True, is_archived=False)
-            .distinct()
-        )
+        return self.flows.filter(is_active=True, is_archived=False)
 
     def toggle_label(self, flows, *, add: bool):
         changed = []
@@ -2158,15 +2182,7 @@ class FlowLabel(TembaModel):
 
         return changed
 
-    def delete(self):
-        for child in self.children.all():
-            child.delete()
-
-        super().delete()
-
     def __str__(self):
-        if self.parent:
-            return "%s > %s" % (self.parent, self.name)
         return self.name
 
     class Meta:
@@ -2186,13 +2202,12 @@ def get_flow_user(org):
     if not __flow_users:
         __flow_users = {}
 
-    branding = org.get_branding()
-    username = "%s_flow" % branding["slug"]
+    username = "%s_flow" % org.branding["slug"]
     flow_user = __flow_users.get(username)
 
     # not cached, let's look it up
     if not flow_user:
-        email = branding["support_email"]
+        email = org.branding["support_email"]
         flow_user = User.objects.filter(username=username).first()
         if flow_user:  # pragma: needs cover
             __flow_users[username] = flow_user

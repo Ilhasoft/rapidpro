@@ -1,3 +1,23 @@
+1.7.18-rapidpro-7.5.129
+----------
+* Fix branding
+
+1.7.17-rapidpro-7.5.129
+----------
+* Fix branding hosts
+
+1.7.16-rapidpro-7.5.129
+----------
+* Fix compress and branding
+
+1.7.15-rapidpro-7.5.129
+----------
+* Fix invalid template name
+
+1.7.14-rapidpro-7.5.129
+----------
+* Update RapidPro with version 7.5.129
+
 1.7.14-rapidpro-7.5.91
 ----------
 * Feat: New Embed Signup process
