@@ -58,7 +58,7 @@ BRANDS = [
         "slug": brand_info.get("slug"),
         "name": brand_info.get("name"),
         "org": brand_info.get("org"),
-        "hosts": brand_info.get("hosts"),
+        "hosts": env.list("BRANDING_HOSTS", default=["localhost"]),
         "colors": env.dict("BRANDING_COLORS", default=dict(primary="#0c6596")),
         "styles": env.list("BRANDING_STYLES", default=["brands/rapidpro/font/style.css"]),
         "welcome_topup": 1000,
