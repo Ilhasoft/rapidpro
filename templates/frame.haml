@@ -75,30 +75,29 @@
 
     -# this view make it possible to process translations from javascript land
     <script src="{% url 'django.views.i18n.javascript_catalog' %}"></script>
-    -compress js
-      :javascript
-        var static_url = '{{STATIC_URL}}';
+    :javascript
+      var static_url = '{{STATIC_URL}}';
 
-      %script{src:"{{ STATIC_URL }}js/libs/jquery.url.js"}
-      %script{src:"{{ STATIC_URL }}bower/toastr/toastr.js"}
-      %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-modal.js"}
-      %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-dropdown.js"}
-      %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-tooltip.js"}
-      %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-tab.js"}      
-      %script{src:"{{ STATIC_URL }}bower/intercooler-js/src/intercooler.js"}
-      %script{src:"{{ STATIC_URL }}bower/moment/moment.js"}
-      %script{src:"{{ STATIC_URL }}bower/moment-timezone/builds/moment-timezone-with-data.js"}
-      %script{src:"{{ STATIC_URL }}bower/xregexp/xregexp-all.js"}
+    %script{src:"{{ STATIC_URL }}js/libs/jquery.url.js"}
+    %script{src:"{{ STATIC_URL }}bower/toastr/toastr.js"}
+    %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-modal.js"}
+    %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-dropdown.js"}
+    %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-tooltip.js"}
+    %script{src:"{{ STATIC_URL }}bower/bootstrap/js/bootstrap-tab.js"}      
+    %script{src:"{{ STATIC_URL }}bower/intercooler-js/src/intercooler.js"}
+    %script{src:"{{ STATIC_URL }}bower/moment/moment.js"}
+    %script{src:"{{ STATIC_URL }}bower/moment-timezone/builds/moment-timezone-with-data.js"}
+    %script{src:"{{ STATIC_URL }}bower/xregexp/xregexp-all.js"}
 
-      // expanded nav dropdown
-      %script{src:"{{ STATIC_URL }}bower/jquery-hoverintent/jquery.hoverIntent.js"}
+    // expanded nav dropdown
+    %script{src:"{{ STATIC_URL }}bower/jquery-hoverintent/jquery.hoverIntent.js"}
 
-      // Non-bower packages
-      %script{src:"{{ STATIC_URL }}lib/uuid.js"}
-      %script{src:"{{ STATIC_URL }}lib/bootstrap-limit.js"}
+    // Non-bower packages
+    %script{src:"{{ STATIC_URL }}lib/uuid.js"}
+    %script{src:"{{ STATIC_URL }}lib/bootstrap-limit.js"}
 
-      -if not debug and not testing
-        %script{src:"{{ STATIC_URL }}lib/raven.min.js"}
+    -if not debug and not testing
+      %script{src:"{{ STATIC_URL }}lib/raven.min.js"}
 
     -compress js
       %script{src:"{{ STATIC_URL }}js/temba.js"}
