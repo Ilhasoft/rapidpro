@@ -1,3 +1,7 @@
+1.7.15-rapidpro-7.5.129
+----------
+* Fix invalid template name
+
 1.7.14-rapidpro-7.5.129
 ----------
 * Update RapidPro with version 7.5.129
