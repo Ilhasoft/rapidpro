@@ -1,3 +1,7 @@
+1.7.20-rapidpro-7.5.129
+----------
+* Hotfix: Update python-dateutil lib and WhatsappCloud type
+
 1.7.19-rapidpro-7.5.129
 ----------
 * Update python-dateutil lib version
