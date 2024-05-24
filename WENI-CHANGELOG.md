@@ -1,3 +1,8 @@
+1.7.19-rapidpro-7.5.129
+----------
+* Update python-dateutil lib version
+* Show WhatsAppCloud in add channels
+
 1.7.18-rapidpro-7.5.129
 ----------
 * Fix branding
