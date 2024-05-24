@@ -47,7 +47,7 @@ iso8601
 phonenumbers
 pycountry
 pycrypto
-python-dateutil==2.2
+python-dateutil==2.8.2
 pytz
 psycopg2-binary
 redis<3.0  # see https://github.com/celery/celery/issues/4495

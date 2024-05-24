@@ -210,7 +210,7 @@ pysocks==1.7.1 ; python_version >= "3.0" and python_full_version < "3.0.0" or py
     # via
     #   -r ../pip-requires.txt
     #   twilio
-python-dateutil==2.2
+python-dateutil==2.8.2
     # via
     #   -r ../pip-requires.txt
     #   analytics-python
