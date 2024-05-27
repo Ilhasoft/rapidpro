@@ -581,6 +581,7 @@ GROUP_PERMISSIONS = {
         "orgs.org_two_factor",
         "orgs.org_vonage_account",
         "orgs.org_vonage_connect",
+        "orgs.org_whatsapp_cloud_connect",
         "orgs.org_workspace",
         "request_logs.httplog_list",
         "request_logs.httplog_read",
