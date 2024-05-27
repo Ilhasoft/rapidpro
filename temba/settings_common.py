@@ -453,7 +453,7 @@ PERMISSIONS = {
 GROUP_PERMISSIONS = {
     "Service Users": ("flows.flow_assets", "msgs.msg_create"),  # internal Temba services have limited permissions
     "Alpha": (),
-    "Beta": ("orgs.org_whatsapp_cloud_connect",),
+    "Beta": (),
     "Dashboard": ("orgs.org_dashboard",),
     "Surveyors": (
         "contacts.contact_api",
@@ -581,6 +581,7 @@ GROUP_PERMISSIONS = {
         "orgs.org_two_factor",
         "orgs.org_vonage_account",
         "orgs.org_vonage_connect",
+        "orgs.org_whatsapp_cloud_connect",
         "orgs.org_workspace",
         "request_logs.httplog_list",
         "request_logs.httplog_read",
