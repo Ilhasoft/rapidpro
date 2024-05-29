@@ -677,6 +677,7 @@ GROUP_PERMISSIONS = {
         "orgs.org_token",
         "orgs.org_two_factor",
         "orgs.org_workspace",
+        "orgs.org_whatsapp_cloud_connect",
         "request_logs.httplog_webhooks",
         "schedules.schedule.*",
         "templates.template_api",
