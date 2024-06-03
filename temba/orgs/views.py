@@ -1727,11 +1727,13 @@ class OrgCRUDL(SmartCRUDL):
     class WhatsappCloudConnect(InferOrgMixin, OrgPermsMixin, SmartFormView):
         class WhatsappCloudConnectForm(forms.Form):
             user_access_code = forms.CharField(min_length=32, required=True)
+            user_redirect_uri = forms.CharField(required=True)
             user_auth_token = forms.CharField(min_length=32, required=False)
 
             def clean(self):
                 try:
                     access_code = self.cleaned_data.get("user_access_code", None)
+                    redirect_uri = self.cleaned_data.get("user_redirect_uri", None)
 
                     app_id = settings.WHATSAPP_APPLICATION_ID
                     app_secret = settings.WHATSAPP_APPLICATION_SECRET
@@ -1742,6 +1744,7 @@ class OrgCRUDL(SmartCRUDL):
                         client_id=app_id,
                         client_secret=app_secret,
                         code=access_code,
+                        redirect_uri=redirect_uri
                     )
 
                     response = requests.get(url, params=params)
@@ -1767,7 +1770,8 @@ class OrgCRUDL(SmartCRUDL):
                             raise Exception(
                                 'Missing permission, we need all the following permissions "business_management", "whatsapp_business_management", "whatsapp_business_messaging"'
                             )
-                except Exception:
+                except Exception as e:
+                    print("EXVCEPTION 🔥:", e)
                     raise forms.ValidationError(
                         _("Sorry account could not be connected. Please try again"), code="invalid"
                     )
@@ -1779,13 +1783,15 @@ class OrgCRUDL(SmartCRUDL):
         field_config = dict(api_key=dict(label=""), api_secret=dict(label=""))
 
         def pre_process(self, request, *args, **kwargs):
+            print("preprocess", request.session)
             session_token = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
             if session_token:
                 return HttpResponseRedirect(self.get_success_url())
-
+            print("No session token 🔥")
             return super().pre_process(request, *args, **kwargs)
 
         def form_valid(self, form):
+            print('form_valid', form)
             auth_token = form.cleaned_data["user_auth_token"]
 
             # add the credentials to the session
