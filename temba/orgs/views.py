@@ -1741,10 +1741,7 @@ class OrgCRUDL(SmartCRUDL):
                     # Exchange user auth code for a permanent token
                     url = "https://graph.facebook.com/v18.0/oauth/access_token"
                     params = dict(
-                        client_id=app_id,
-                        client_secret=app_secret,
-                        code=access_code,
-                        redirect_uri=redirect_uri
+                        client_id=app_id, client_secret=app_secret, code=access_code, redirect_uri=redirect_uri
                     )
 
                     response = requests.get(url, params=params)
@@ -1791,7 +1788,7 @@ class OrgCRUDL(SmartCRUDL):
             return super().pre_process(request, *args, **kwargs)
 
         def form_valid(self, form):
-            print('form_valid', form)
+            print("form_valid", form)
             auth_token = form.cleaned_data["user_auth_token"]
 
             # add the credentials to the session
