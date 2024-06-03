@@ -1768,7 +1768,6 @@ class OrgCRUDL(SmartCRUDL):
                                 'Missing permission, we need all the following permissions "business_management", "whatsapp_business_management", "whatsapp_business_messaging"'
                             )
                 except Exception as e:
-                    print("EXVCEPTION 🔥:", e)
                     raise forms.ValidationError(
                         _("Sorry account could not be connected. Please try again"), code="invalid"
                     )
@@ -1780,15 +1779,12 @@ class OrgCRUDL(SmartCRUDL):
         field_config = dict(api_key=dict(label=""), api_secret=dict(label=""))
 
         def pre_process(self, request, *args, **kwargs):
-            print("preprocess", request.session)
             session_token = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
             if session_token:
                 return HttpResponseRedirect(self.get_success_url())
-            print("No session token 🔥")
             return super().pre_process(request, *args, **kwargs)
 
         def form_valid(self, form):
-            print("form_valid", form)
             auth_token = form.cleaned_data["user_auth_token"]
 
             # add the credentials to the session
