@@ -1,3 +1,8 @@
+1.7.21-rapidpro-7.5.129
+----------
+* Fix: WhatsApp Cloud connect
+* Fix: Add WhatsApp Cloud connect permission to admin
+
 1.7.20-rapidpro-7.5.129
 ----------
 * Hotfix: Update python-dateutil lib and WhatsappCloud type
