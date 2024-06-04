@@ -1774,6 +1774,7 @@ class OrgCRUDL(SmartCRUDL):
 
                 return self.cleaned_data
 
+        permission = "orgs.org_edit"
         form_class = WhatsappCloudConnectForm
         success_url = "@channels.types.whatsapp_cloud.claim"
         field_config = dict(api_key=dict(label=""), api_secret=dict(label=""))
