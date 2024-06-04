@@ -1727,11 +1727,13 @@ class OrgCRUDL(SmartCRUDL):
     class WhatsappCloudConnect(InferOrgMixin, OrgPermsMixin, SmartFormView):
         class WhatsappCloudConnectForm(forms.Form):
             user_access_code = forms.CharField(min_length=32, required=True)
+            user_redirect_uri = forms.CharField(required=True)
             user_auth_token = forms.CharField(min_length=32, required=False)
 
             def clean(self):
                 try:
                     access_code = self.cleaned_data.get("user_access_code", None)
+                    redirect_uri = self.cleaned_data.get("user_redirect_uri", None)
 
                     app_id = settings.WHATSAPP_APPLICATION_ID
                     app_secret = settings.WHATSAPP_APPLICATION_SECRET
@@ -1739,9 +1741,7 @@ class OrgCRUDL(SmartCRUDL):
                     # Exchange user auth code for a permanent token
                     url = "https://graph.facebook.com/v18.0/oauth/access_token"
                     params = dict(
-                        client_id=app_id,
-                        client_secret=app_secret,
-                        code=access_code,
+                        client_id=app_id, client_secret=app_secret, code=access_code, redirect_uri=redirect_uri
                     )
 
                     response = requests.get(url, params=params)
@@ -1767,7 +1767,7 @@ class OrgCRUDL(SmartCRUDL):
                             raise Exception(
                                 'Missing permission, we need all the following permissions "business_management", "whatsapp_business_management", "whatsapp_business_messaging"'
                             )
-                except Exception:
+                except Exception as e:
                     raise forms.ValidationError(
                         _("Sorry account could not be connected. Please try again"), code="invalid"
                     )
@@ -1783,7 +1783,6 @@ class OrgCRUDL(SmartCRUDL):
             session_token = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
             if session_token:
                 return HttpResponseRedirect(self.get_success_url())
-
             return super().pre_process(request, *args, **kwargs)
 
         def form_valid(self, form):

@@ -127,6 +127,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         context["clear_session_token_url"] = reverse("channels.types.whatsapp_cloud.clear_session_token")
         context["connect_whatsapp_url"] = reverse("orgs.org_whatsapp_cloud_connect")
         context["whatsapp_app_id"] = settings.WHATSAPP_APPLICATION_ID
+        context["whatsapp_config_id"] = settings.WHATSAPP_CONFIGURATION_ID
 
         claim_error = None
         if context["form"].errors:
