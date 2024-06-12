@@ -2081,7 +2081,8 @@ class OrgCRUDL(SmartCRUDL):
 
         def get_owner(self, obj):
             owner = obj.get_owner()
-            return f"{owner.name} ({owner.email})"
+            full_name = f"{owner.first_name} {owner.last_name}"
+            return f"{full_name} ({owner.email})"
 
         def derive_queryset(self, **kwargs):  # pragma: no cover
             obj_filter = self.request.GET.get("filter")
