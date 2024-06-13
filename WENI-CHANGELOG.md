@@ -1,3 +1,11 @@
+1.7.23-rapidpro-7.5.129
+----------
+* Add business_management permission for instagram and facebook
+
+1.7.22-rapidpro-7.5.129
+----------
+* Fix error in org/manage url
+
 1.7.21-rapidpro-7.5.129
 ----------
 * Fix: WhatsApp Cloud connect
