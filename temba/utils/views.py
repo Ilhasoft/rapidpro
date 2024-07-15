@@ -272,6 +272,69 @@ class CourierURLHandler(ExternalURLHandler):
 class MailroomURLHandler(ExternalURLHandler):
     service = "Mailroom"
 
+class ContentMenu:
+    """
+    Utility for building content menus
+    """
+
+    def __init__(self):
+        self.groups = [[]]
+
+    def new_group(self):
+        self.groups.append([])
+
+    def add_link(self, label: str, url: str, as_button: bool = False):
+        self.groups[-1].append({"type": "link", "label": label, "url": url, "as_button": as_button})
+
+    def add_js(self, label: str, on_click: str, link_class: str, as_button: bool = False):
+        self.groups[-1].append(
+            {"type": "js", "label": label, "on_click": on_click, "link_class": link_class, "as_button": as_button}
+        )
+
+    def add_url_post(self, label: str, url: str, as_button: bool = False):
+        self.groups[-1].append({"type": "url_post", "label": label, "url": url, "as_button": as_button})
+
+    def add_modax(
+        self,
+        label: str,
+        modal_id: str,
+        url: str,
+        *,
+        title: str = None,
+        on_submit: str = None,
+        primary: bool = False,
+        as_button: bool = False,
+        disabled: bool = False,
+    ):
+        self.groups[-1].append(
+            {
+                "type": "modax",
+                "label": label,
+                "url": url,
+                "modal_id": modal_id,
+                "title": title or label,
+                "on_submit": on_submit,
+                "primary": primary,
+                "as_button": as_button,
+                "disabled": disabled,
+            }
+        )
+
+    def as_items(self):
+        """
+        Reduce groups to a flat list of items separated by dividers.
+        """
+        items = []
+        for group in self.groups:
+            if not group:
+                continue
+            if items:
+                items.append({"type": "divider"})
+            items.extend(group)
+        return items
+
+
+
 class ContentMenuMixin:
     """
     Mixin for views that have a content menu (hamburger icon with dropdown items)
