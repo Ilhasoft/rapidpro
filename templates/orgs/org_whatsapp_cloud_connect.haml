@@ -27,64 +27,42 @@
           -trans "Approve the permissions, these are required for us to access the API on your behalf."
 
     #fb-app-connect.flex.mt-4
-      .button-primary(onclick="launchWhatsAppSignup()")
+      %temba-loading#fb-app-connect-throbber
+      #fb-app-connect-button.button-primary.hidden
         -trans "Add Facebook Business"
 
     %form#claim-form(style="display:none;" method="POST" action="{{ connect_url }}")
       {% csrf_token %}
-      %input#user-access-token(type="text" name="user_access_token")
+      %input#user-access-code(type="text" name="user_access_code")
+      %input#user-redirect-uri(type="text" name="user_redirect_uri")
 
 -block extra-script
   {{ block.super }}
   :javascript
-    $(document).ready(function(){
-      var hash = window.location.hash.substring(1)
-      var result = hash.split('&').reduce(function (res, item) {
-        var parts = item.split('=');
-        res[parts[0]] = parts[1];
-        return res;
-      }, {});
 
-      var accessToken = result.long_lived_token || result.access_token;
-      if (accessToken) {
-        $("#user-access-token").val(accessToken);
+    let fbq = null;
+    const redirectUri = window.location.origin + window.location.pathname;
+
+    $(document).ready(function(){
+      let urlParams = new URLSearchParams(window.location.search)
+      let code = urlParams.get('code')
+
+      if (code) {
+        $("#user-access-code").val(code);
+        $("#user-redirect-uri").val(redirectUri)
         $("#claim-form").submit();
+      } else {
+        $("#fb-app-connect-button").removeClass("hidden")
+        $("#fb-app-connect-throbber").addClass("hidden");
+
+        // add launchWhatsAppSignup to the button
+        $("#fb-app-connect-button").click(function() {
+          launchWhatsAppSignup();
+        });
       }
     });
 
-    window.fbAsyncInit = function () {
-      // JavaScript SDK configuration and setup
-      FB.init({
-        appId:    '{{ whatsapp_app_id }}', // Meta App ID
-        xfbml:    true, // parse social plugins on this page
-        version:  'v14.0' //Graph API version
-      });
-    };
-
-    // Load the JavaScript SDK asynchronously
-    (function (d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s); js.id = id;
-      js.src = "https://connect.facebook.net/en_US/sdk.js";
-      fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
-
     // Facebook Login with JavaScript SDK
     function launchWhatsAppSignup() {
-      // Launch Facebook login
-      FB.login(function (response) {
-        if (response.authResponse) {
-          const accessToken = response.authResponse.accessToken;
-          if (accessToken) {
-            $("#user-access-token").val(accessToken);
-            $("#claim-form").submit();
-          }
-        }
-      }, {
-        scope: 'business_management,whatsapp_business_management,whatsapp_business_messaging',
-        extras: {
-          feature: 'whatsapp_embedded_signup',
-        }
-      });
+      location.replace("https://www.facebook.com/v18.0/dialog/oauth?client_id={{ whatsapp_app_id }}&redirect_uri=" + redirectUri + "&config_id={{ whatsapp_config_id }}&response_type=code");
     }

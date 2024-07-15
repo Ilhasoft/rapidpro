@@ -11,6 +11,8 @@ from django.utils.translation import gettext_lazy as _
 
 from temba.orgs.views import ModalMixin, OrgObjPermsMixin, OrgPermsMixin
 from temba.utils.fields import InputWidget
+from temba.utils.text import truncate
+from temba.utils.views import ContentMenuMixin
 
 from ...models import Channel
 from ...views import ClaimViewMixin
@@ -37,7 +39,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         app_id = settings.WHATSAPP_APPLICATION_ID
         app_secret = settings.WHATSAPP_APPLICATION_SECRET
 
-        url = "https://graph.facebook.com/v13.0/debug_token"
+        url = "https://graph.facebook.com/v18.0/debug_token"
         params = {"access_token": f"{app_id}|{app_secret}", "input_token": oauth_user_token}
 
         response = requests.get(url, params=params)
@@ -63,7 +65,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         app_id = settings.WHATSAPP_APPLICATION_ID
         app_secret = settings.WHATSAPP_APPLICATION_SECRET
 
-        url = "https://graph.facebook.com/v13.0/debug_token"
+        url = "https://graph.facebook.com/v18.0/debug_token"
         params = {"access_token": f"{app_id}|{app_secret}", "input_token": oauth_user_token}
 
         response = requests.get(url, params=params)
@@ -88,7 +90,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
                 seen_waba.append(target_waba)
 
-                url = f"https://graph.facebook.com/v13.0/{target_waba}"
+                url = f"https://graph.facebook.com/v18.0/{target_waba}"
                 params = {
                     "access_token": oauth_user_token,
                     "fields": "id,name,currency,message_template_namespace,owner_business_info,account_review_status,on_behalf_of_business_info,primary_funding_id,purchase_order_number,timezone_id",
@@ -100,7 +102,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
                 business_id = target_waba_details["on_behalf_of_business_info"]["id"]
 
-                url = f"https://graph.facebook.com/v13.0/{target_waba}/phone_numbers"
+                url = f"https://graph.facebook.com/v18.0/{target_waba}/phone_numbers"
                 params = {"access_token": oauth_user_token}
                 response = requests.get(url, params=params)
                 response_json = response.json()
@@ -125,6 +127,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         context["clear_session_token_url"] = reverse("channels.types.whatsapp_cloud.clear_session_token")
         context["connect_whatsapp_url"] = reverse("orgs.org_whatsapp_cloud_connect")
         context["whatsapp_app_id"] = settings.WHATSAPP_APPLICATION_ID
+        context["whatsapp_config_id"] = settings.WHATSAPP_CONFIGURATION_ID
 
         claim_error = None
         if context["form"].errors:
@@ -138,7 +141,8 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         return context
 
     def form_valid(self, form):
-        org = self.request.user.get_org()
+        user_auth = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
+        org = self.request.org
 
         number = form.cleaned_data["number"]
         verified_name = form.cleaned_data["verified_name"]
@@ -149,6 +153,8 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         message_template_namespace = form.cleaned_data["message_template_namespace"]
         pin = str(randint(100000, 999999))
 
+        name = truncate(f"{number} - {verified_name}", 64)
+
         config = {
             "wa_number": number,
             "wa_verified_name": verified_name,
@@ -157,6 +163,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             "wa_business_id": business_id,
             "wa_message_template_namespace": message_template_namespace,
             "wa_pin": pin,
+            "wa_user_auth_token": user_auth,
         }
 
         # don't add the same number twice to the same account
@@ -180,9 +187,13 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             return self.form_invalid(form)
 
         # assign system user to WABA
-        url = f"https://graph.facebook.com/v13.0/{waba_id}/assigned_users"
-        params = {"user": f"{settings.WHATSAPP_ADMIN_SYSTEM_USER_ID}", "tasks": ["MANAGE"]}
-        headers = {"Authorization": f"Bearer {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN}"}
+        url = f"https://graph.facebook.com/v18.0/{waba_id}/assigned_users"
+        params = {
+            "user": f"{settings.WHATSAPP_ADMIN_SYSTEM_USER_ID}",
+            "access_token": {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN},
+            "tasks": ["MANAGE"],
+        }
+        headers = {"Authorization": f"Bearer {user_auth}"}
 
         resp = requests.post(url, params=params, headers=headers)
 
@@ -203,7 +214,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             self.request.user,
             None,
             self.channel_type,
-            name=f"{number} - {verified_name}",
+            name=name,
             address=phone_number_id,
             config=config,
             tps=80,
@@ -227,7 +238,7 @@ class ClearSessionToken(OrgPermsMixin, SmartTemplateView):
         return JsonResponse({})
 
 
-class RequestCode(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
+class RequestCode(ModalMixin, ContentMenuMixin, OrgObjPermsMixin, SmartModelActionView):
     class Form(forms.Form):
         pass
 
@@ -246,13 +257,10 @@ class RequestCode(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
     def get_success_url(self):
         return reverse("channels.types.whatsapp_cloud.verify_code", args=[self.object.uuid])
 
-    def get_gear_links(self):
-        return [
-            dict(
-                title=_("Channel"),
-                href=reverse("channels.channel_read", args=[self.object.uuid]),
-            )
-        ]
+    def build_content_menu(self, menu):
+        obj = self.get_object()
+
+        menu.add_link(_("Channel"), reverse("channels.channel_read", args=[obj.uuid]))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -292,7 +300,7 @@ class RequestCode(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
                 )
 
 
-class VerifyCode(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
+class VerifyCode(ModalMixin, ContentMenuMixin, OrgObjPermsMixin, SmartModelActionView):
     class Form(forms.Form):
         code = forms.CharField(
             min_length=6, required=True, help_text=_("The 6-digits number verification code"), widget=InputWidget()
@@ -307,13 +315,10 @@ class VerifyCode(ModalMixin, OrgObjPermsMixin, SmartModelActionView):
     title = _("Verify Number")
     submit_button_name = _("Verify Number")
 
-    def get_gear_links(self):
-        return [
-            dict(
-                title=_("Channel"),
-                href=reverse("channels.channel_read", args=[self.object.uuid]),
-            )
-        ]
+    def build_content_menu(self, menu):
+        obj = self.get_object()
+
+        menu.add_link(_("Channel"), reverse("channels.channel_read", args=[obj.uuid]))
 
     def get_queryset(self):
         return Channel.objects.filter(is_active=True, org=self.request.org, channel_type="WAC")
