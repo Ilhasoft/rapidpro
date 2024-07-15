@@ -271,3 +271,69 @@ class CourierURLHandler(ExternalURLHandler):
 
 class MailroomURLHandler(ExternalURLHandler):
     service = "Mailroom"
+
+class ContentMenuMixin:
+    """
+    Mixin for views that have a content menu (hamburger icon with dropdown items)
+
+    TODO: use component to read menu as JSON and then can stop putting menu (in legacy gear-links format) in context
+    """
+
+    # renderers to convert menu items to the legacy "gear-links" format
+    gear_link_renderers = {
+        "link": lambda i: {"title": i["label"], "href": i["url"], "as_button": i["as_button"]},
+        "js": lambda i: {
+            "title": i["label"],
+            "on_click": i["on_click"],
+            "js_class": i["link_class"],
+            "href": "#",
+            "as_button": i["as_button"],
+        },
+        "url_post": lambda i: {
+            "title": i["label"],
+            "href": i["url"],
+            "js_class": "posterize",
+            "as_button": i["as_button"],
+        },
+        "modax": lambda i: {
+            "id": i["modal_id"],
+            "title": i["label"],
+            "modax": i["title"],
+            "href": i["url"],
+            "on_submit": i["on_submit"],
+            "style": "button-primary" if i["primary"] else "",
+            "as_button": i["as_button"],
+            "disabled": i["disabled"],
+        },
+        "divider": lambda i: {"divider": True},
+    }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        menu_links = []
+        menu_buttons = []
+
+        for item in self._get_content_menu():
+            rendered_item = self.gear_link_renderers[item["type"]](item)
+            if item.get("as_button", False):
+                menu_buttons.append(rendered_item)
+            else:
+                menu_links.append(rendered_item)
+
+        context["content_menu_buttons"] = menu_buttons
+        context["content_menu_links"] = menu_links
+        return context
+
+    def _get_content_menu(self):
+        menu = ContentMenu()
+        self.build_content_menu(menu)
+        return menu.as_items()
+
+    def build_content_menu(self, menu: ContentMenu):  # pragma: no cover
+        pass
+
+    def get(self, request, *args, **kwargs):
+        if "HTTP_TEMBA_CONTENT_MENU" in self.request.META:
+            return JsonResponse({"items": self._get_content_menu()})
+
+        return super().get(request, *args, **kwargs)
