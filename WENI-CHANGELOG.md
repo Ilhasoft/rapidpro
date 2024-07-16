@@ -1,3 +1,7 @@
+1.8.0-rapidpro-7.4.2
+----------
+* Fix: WhatsApp cloud connect
+
 1.7.5-rapidpro-7.4.2
 ----------
 * Remove Facebook login redirect
