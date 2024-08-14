@@ -1,3 +1,7 @@
+1.8.1-rapidpro-7.4.2
+----------
+* Fix wac integration
+
 1.8.0-rapidpro-7.4.2
 ----------
 * Fix: WhatsApp cloud connect
