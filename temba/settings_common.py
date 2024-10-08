@@ -11,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 # Default to debugging
 # -----------------------------------------------------------------------------------
 DEBUG = True
+USER_RECOVER_TIME_INTERVAL = 12
 
 # -----------------------------------------------------------------------------------
 # Sets TESTING to True if this configuration is read during a unit test
