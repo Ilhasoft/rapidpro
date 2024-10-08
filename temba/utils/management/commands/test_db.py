@@ -525,9 +525,11 @@ class Command(BaseCommand):
                         "name": name,
                         "groups": [],
                         "tel": "+2507%08d" % c_index if self.probability(CONTACT_HAS_TEL_PROB) else None,
-                        "twitter": "%s%d" % (name.replace(" ", "_").lower() if name else "tweep", c_index)
-                        if self.probability(CONTACT_HAS_TWITTER_PROB)
-                        else None,
+                        "twitter": (
+                            "%s%d" % (name.replace(" ", "_").lower() if name else "tweep", c_index)
+                            if self.probability(CONTACT_HAS_TWITTER_PROB)
+                            else None
+                        ),
                         "gender": self.random_choice(("M", "F")) if self.probability(CONTACT_HAS_FIELD_PROB) else None,
                         "age": self.random.randint(16, 80) if self.probability(CONTACT_HAS_FIELD_PROB) else None,
                         "joined": self.random_date() if self.probability(CONTACT_HAS_FIELD_PROB) else None,

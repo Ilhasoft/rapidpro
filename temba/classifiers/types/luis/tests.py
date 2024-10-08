@@ -180,7 +180,7 @@ class LuisTypeTest(TembaTest):
                 "slot": "staging",
             },
         )
-        self.assertFormError(response, "form", "__all__", "Check authoring credentials: Not authorized")
+        self.assertFormError(response.context["form"], None, "Check authoring credentials: Not authorized")
 
         # simulate selected slot isn't published
         mock_get_app.side_effect = None

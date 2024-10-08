@@ -211,7 +211,7 @@ class UserTest(TembaTest):
                 },
             ),
         )
-        for (org, perm, checks) in tests:
+        for org, perm, checks in tests:
             for user, has_perm in checks.items():
                 self.assertEqual(
                     has_perm,
@@ -326,7 +326,7 @@ class UserTest(TembaTest):
         self.assertFormError(
             response,
             "form",
-            "__all__",
+            None,
             "Please enter a correct username and password. Note that both fields may be case-sensitive.",
         )
 
