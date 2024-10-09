@@ -1166,7 +1166,8 @@ class EndpointsTest(TembaTest):
 
         # can't update campaign in other org
         response = self.postJSON(url, "uuid=%s" % spam.uuid, {"name": "Won't work", "group": spammers.uuid})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Campaign matches the given query."})
 
     def test_campaigns_does_not_update_inactive_archived(self):
         url = reverse("api.v2.campaigns")
@@ -2112,11 +2113,13 @@ class EndpointsTest(TembaTest):
 
         # try to update a contact with non-existent UUID
         response = self.postJSON(url, "uuid=ad6acad9-959b-4d70-b144-5de2891e4d00", {})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
 
         # try to update a contact in another org
         response = self.postJSON(url, "uuid=%s" % hans.uuid, {})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
 
         # try to add a contact to a dynamic group
         response = self.postJSON(url, "uuid=%s" % jean.uuid, {"groups": [dyn_group.uuid]})
@@ -2182,11 +2185,13 @@ class EndpointsTest(TembaTest):
 
         # try deleting a contact by a non-existent URN
         response = self.deleteJSON(url, "urn=twitter:billy")
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
 
         # try to delete a contact in another org
         response = self.deleteJSON(url, "uuid=%s" % hans.uuid)
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
 
     def test_prevent_modifying_contacts_with_fields_that_have_null_chars(self):
         """
@@ -2741,11 +2746,13 @@ class EndpointsTest(TembaTest):
 
         # try to update with key of deleted field
         response = self.postJSON(url, "key=deleted", {"name": "Something", "type": "text"})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No ContactField matches the given query."})
 
         # try to update with non-existent key
         response = self.postJSON(url, "key=not_ours", {"name": "Something", "type": "text"})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No ContactField matches the given query."})
 
         # try to change type of date field used by campaign event
         response = self.postJSON(url, "key=registered", {"name": "Registered", "type": "text"})
@@ -3196,7 +3203,8 @@ class EndpointsTest(TembaTest):
 
         # can't update a group from other org
         response = self.postJSON(url, "uuid=%s" % spammers.uuid, {"name": "Won't work"})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No ContactGroup matches the given query."})
 
         # try an empty delete request
         response = self.deleteJSON(url, None)
@@ -3216,7 +3224,8 @@ class EndpointsTest(TembaTest):
 
         # can't delete a group in another org
         response = self.deleteJSON(url, "uuid=%s" % spammers.uuid)
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No ContactGroup matches the given query."})
 
         for group in ContactGroup.objects.filter(is_system=False):
             group.release(self.admin)
@@ -3352,7 +3361,8 @@ class EndpointsTest(TembaTest):
 
         # can't update label from other org
         response = self.postJSON(url, f"uuid={spam.uuid}", {"name": "Won't work"})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Label matches the given query."})
 
         # try an empty delete request
         response = self.deleteJSON(url, None)
@@ -3368,7 +3378,8 @@ class EndpointsTest(TembaTest):
 
         # try to delete a label in another org
         response = self.deleteJSON(url, f"uuid={spam.uuid}")
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Label matches the given query."})
 
         # try creating a new label after reaching the limit on labels
         current_count = Label.objects.filter(org=self.org, is_active=True).count()
@@ -4153,7 +4164,8 @@ class EndpointsTest(TembaTest):
 
         # try to delete a subscriber from another org
         response = self.deleteJSON(url, "id=%d" % other_org_subscriber.id)
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No ResthookSubscriber matches the given query."})
 
         # ok, let's look at the events on this resthook
         url = reverse("api.v2.resthook_events")
@@ -4997,7 +5009,8 @@ class EndpointsTest(TembaTest):
 
         # can't update topic from other org
         response = self.postJSON(url, "uuid=%s" % other_org.uuid, {"name": "Won't work"})
-        self.assert404(response)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {"detail": "No Topic matches the given query."})
 
         # can't update topic to same name as existing topic
         response = self.postJSON(url, "uuid=%s" % support.uuid, {"name": "General"})
