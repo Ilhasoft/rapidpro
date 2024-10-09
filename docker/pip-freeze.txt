@@ -85,8 +85,6 @@ django-redis==4.12.1 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
 django-storages==1.11.1 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
-django-templates-macros==0.2
-    # via -r pip-requires.txt
 django-timezone-field==4.1.2 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
 djangorestframework==3.12.4 ; python_version >= "3.5"

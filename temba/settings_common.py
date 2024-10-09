@@ -121,7 +121,7 @@ TESTFILES_DIR = os.path.join(PROJECT_DIR, "../testfiles")
 STATICFILES_DIRS = (
     os.path.join(PROJECT_DIR, "../static"),
     os.path.join(PROJECT_DIR, "../media"),
-    os.path.join(PROJECT_DIR, "../node_modules/@weni/flow-editor-rp/build"),
+    os.path.join(PROJECT_DIR, "../node_modules/@nyaruka/flow-editor/build"),
     os.path.join(PROJECT_DIR, "../node_modules/@nyaruka/temba-components/dist/static"),
     os.path.join(PROJECT_DIR, "../node_modules"),
     os.path.join(PROJECT_DIR, "../node_modules/react/umd"),
@@ -879,12 +879,13 @@ CELERY_BEAT_SCHEDULE = {
     "trim-channel-log": {"task": "trim_channel_log", "schedule": crontab(hour=3, minute=0)},
     "trim-event-fires": {"task": "trim_event_fires", "schedule": timedelta(seconds=900)},
     "trim-flow-revisions": {"task": "trim_flow_revisions", "schedule": crontab(hour=0, minute=0)},
-    "trim-flow-sessions-and-starts": {"task": "trim_flow_sessions_and_starts", "schedule": crontab(hour=0, minute=0)},
-    "trim-http-logs": {"task": "trim_http_logs_task", "schedule": crontab(hour=3, minute=0)},
-    "trim-sync-events": {"task": "trim_sync_events_task", "schedule": crontab(hour=3, minute=0)},
-    "trim-webhook-event": {"task": "trim_webhook_event_task", "schedule": crontab(hour=3, minute=0)},
     "update-org-activity": {"task": "update_org_activity_task", "schedule": crontab(hour=3, minute=5)},
     "refresh-teams-tokens": {"task": "refresh_teams_tokens", "schedule": crontab(hour=8, minute=0)},
+    "trim-flow-sessions": {"task": "trim_flow_sessions", "schedule": crontab(hour=0, minute=0)},
+    "trim-flow-starts": {"task": "trim_flow_starts", "schedule": crontab(hour=1, minute=0)},
+    "trim-http-logs": {"task": "trim_http_logs", "schedule": crontab(hour=2, minute=0)},
+    "trim-sync-events": {"task": "trim_sync_events", "schedule": crontab(hour=3, minute=0)},
+    "trim-webhook-events": {"task": "trim_webhook_events", "schedule": crontab(hour=3, minute=0)},
 }
 
 # -----------------------------------------------------------------------------------
@@ -1043,7 +1044,7 @@ ANALYTICS_TYPES = [
 ]
 
 # set of ISO-639-3 codes of languages to allow in addition to all ISO-639-1 languages
-NON_ISO6391_LANGUAGES = {}
+NON_ISO6391_LANGUAGES = {"mul", "und"}
 
 # -----------------------------------------------------------------------------------
 # Store sessions in our cache

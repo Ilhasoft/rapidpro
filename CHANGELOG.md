@@ -1,3 +1,87 @@
+v7.5.149 (2023-01-10)
+-------------------------
+ * Drop FlowRunCount model
+
+v7.5.148 (2023-01-09)
+-------------------------
+ * Stop squashing FlowRunCount
+ * Add misisng index on FlowRunStatusCount and rework get_category_counts to be deterministic
+ * Stop creating flows_flowruncount rows in db triggers and remove unsquashed index
+ * Bump required pg_dump version for mailroom_db command to 14
+
+v7.5.147 (2023-01-09)
+-------------------------
+ * Use und (Undetermined) as default flow language and add support for mul (Multiple)
+ * Disallow empty and null flow languages, change default spec version to zero
+ * Tweak migrate_flows to have smaller batch size and order by org to increase org assets cache hits
+
+v7.5.146 (2023-01-05)
+-------------------------
+ * Cleanup migrate_flows command and stop excluding flows with version 11.12
+ * Change sample flows language to eng
+ * Refresh menu when tickets are updated
+ * Fix frame-top analytics includes
+ * Fix transparency issue with content menu on editor page
+
+v7.5.145 (2023-01-04)
+-------------------------
+ * Update flow editor to include fix for no expiration route on ivr
+ * Stop defaulting to base for new flow languages
+
+v7.5.144 (2023-01-04)
+-------------------------
+ * Ensure all orgs have at least one flow language
+ * Switch to using temba-date in more places
+
+v7.5.143 (2023-01-02)
+-------------------------
+ * Update mailroom version for CI
+ * Tidy up org creation (signups and grants)
+
+v7.5.142 (2022-12-16)
+-------------------------
+ * Fix org listing when org has no users left
+
+v7.5.141 (2022-12-16)
+-------------------------
+ * Fix searching for orgs on manage list page
+ * Fix highcharts colors
+ * Fix invalid template name
+
+v7.5.140 (2022-12-15)
+-------------------------
+ * Fix flow results page
+
+v7.5.136 (2022-12-15)
+-------------------------
+ * Tell codecov to ignore static/
+ * Switch label action buttons to use temba-dropdown
+
+v7.5.135 (2022-12-13)
+-------------------------
+ * Fix content menu display issues
+
+v7.5.134 (2022-12-13)
+-------------------------
+ * Switch to yarn
+
+v7.5.133 (2022-12-12)
+-------------------------
+ * Bump required python version to 3.10
+
+v7.5.132 (2022-12-12)
+-------------------------
+ * Support Python 3.10
+
+v7.5.131 (2022-12-09)
+-------------------------
+ * Replace .gauge on analytics backend with .gauges which allows backends to send guage values in bulk
+ * Remove celery auto discovery for jiochat and wechat tasks which were removed
+
+v7.5.130 (2022-12-09)
+-------------------------
+ * Record cron time in analytics
+
 v7.5.129 (2022-12-08)
 -------------------------
  * Cleanup cron task names
