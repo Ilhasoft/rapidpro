@@ -689,8 +689,8 @@ class ChannelTest(TembaTest):
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][0].code, "D3")
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][1].code, "DS")
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][2].code, "FBA")
-        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-2].code, "WC")
-        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-1].code, "ZVW")
+        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-2].code, "ZVW")
+        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-1].code, "TM")
 
         self.admin.groups.add(Group.objects.get(name="Beta"))
 
@@ -708,8 +708,8 @@ class ChannelTest(TembaTest):
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][0].code, "D3")
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][1].code, "DS")
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][2].code, "FBA")
-        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-2].code, "WA")
-        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-1].code, "ZVW")
+        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-2].code, "ZVW")
+        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-1].code, "TM")
 
     def test_register_unsupported_android(self):
         # remove our explicit country so it needs to be derived from channels
