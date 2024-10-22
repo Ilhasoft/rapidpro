@@ -1540,7 +1540,7 @@ class Alert(SmartModel):
             existing = channels.get(sent["channel"], dict(queued=None))
             existing["sent"] = sent["latest_sent"]
 
-        for (channel_id, value) in channels.items():
+        for channel_id, value in channels.items():
             # we haven't sent any messages in the past six hours
             if not value["sent"] or value["sent"] < six_hours_ago:
                 channel = Channel.objects.get(pk=channel_id)

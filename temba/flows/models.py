@@ -456,13 +456,12 @@ class Flow(LegacyUUIDMixin, TembaModel, DependencyMixin):
                 pass
 
     def get_attrs(self):
-        icon = (
-            "icon.flow_message"
-            if self.flow_type == Flow.TYPE_MESSAGE
-            else "icon.flow_ivr"
-            if self.flow_type == Flow.TYPE_VOICE
-            else "icon.flow"
-        )
+        if self.flow_type == Flow.TYPE_MESSAGE:
+            icon = "icon.flow_message"
+        elif self.flow_type == Flow.TYPE_VOICE:
+            icon = "icon.flow_ivr"
+        else:
+            icon = "icon.flow"
 
         return {"icon": icon, "type": self.flow_type, "uuid": self.uuid}
 

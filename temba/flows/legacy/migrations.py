@@ -361,7 +361,7 @@ def migrate_to_version_11_7(json_flow, flow=None):
 
         destination = nodes_by_uuid.get(actionset["destination"]) if actionset.get("destination") else None
 
-        for (i, new_set) in reversed(list(enumerate(new_sets))):
+        for i, new_set in reversed(list(enumerate(new_sets))):
             # if this is first new node, it gets the UUID of the actionset being
             # replaced so that nodes pointing to this actionset will now point to it
             new_node_uuid = actionset["uuid"] if i == 0 else str(uuid4())
