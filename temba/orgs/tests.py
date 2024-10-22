@@ -3070,8 +3070,6 @@ class OrgCRUDLTest(TembaTest, CRUDLTestMixin):
             response, "form", "last_name", "Ensure this value has at most 150 characters (it has 162)."
         )
         self.assertFormError(response, "form", "name", "Ensure this value has at most 128 characters (it has 136).")
-        # self.assertFormError(response, "form", "email", "Ensure this value has at most 150 characters (it has 159).")
-        # self.assertFormError(response, "form", "email", "Enter a valid email address.")
 
     def test_org_grant_form_clean(self):
         grant_url = reverse("orgs.org_grant")
@@ -3255,15 +3253,10 @@ class OrgCRUDLTest(TembaTest, CRUDLTestMixin):
         # check default org content was created correctly
         system_fields = set(org.fields.filter(is_system=True).values_list("key", flat=True))
         system_groups = set(org.groups.filter(is_system=True).values_list("name", flat=True))
-        # sample_flows = set(org.flows.values_list("name", flat=True))
         internal_ticketer = org.ticketers.get()
 
         self.assertEqual({"created_on", "id", "language", "last_seen_on", "name"}, system_fields)
         self.assertEqual({"Active", "Archived", "Blocked", "Stopped", "Open Tickets"}, system_groups)
-        # self.assertEqual(
-        #     {"Sample Flow - Order Status Checker", "Sample Flow - Satisfaction Survey", "Sample Flow - Simple Poll"},
-        #     sample_flows,
-        # )
         self.assertEqual("RapidPro Tickets", internal_ticketer.name)
 
         # should now be able to go to channels page

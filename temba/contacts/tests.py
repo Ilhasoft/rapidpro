@@ -808,7 +808,6 @@ class ContactCRUDLTest(CRUDLTestMixin, TembaTest):
 
     @mock_mailroom
     def test_start(self, mr_mocks):
-        # sample_flows = list(self.org.flows.order_by("name"))
         background_flow = self.get_flow("background")
         self.get_flow("media_survey")
         archived_flow = self.get_flow("color")
@@ -824,8 +823,6 @@ class ContactCRUDLTest(CRUDLTestMixin, TembaTest):
             allow_org2=True,
             form_fields=["query", "flow", "recipients"],
         )
-
-        # self.assertEqual([background_flow] + sample_flows, list(response.context["form"].fields["flow"].queryset))
 
         # try to submit without specifying a flow
         self.assertUpdateSubmit(

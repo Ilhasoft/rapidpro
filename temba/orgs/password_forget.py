@@ -7,7 +7,6 @@ from .views import UserCRUDL as UserCRUDLBase
 
 USER_RECOVER_ATTEMPTS_CACHE_KEY = "user-email:{email}"
 USER_RECOVER_TIME_INTERVAL = settings.USER_RECOVER_TIME_INTERVAL * 60 * 60
-print(USER_RECOVER_TIME_INTERVAL)
 
 
 class UserCRUDL(UserCRUDLBase):
