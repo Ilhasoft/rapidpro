@@ -1,3 +1,7 @@
+1.8.2-rapidpro-7.4.2
+----------
+* Fix boto3 version to 1.34.112
+
 1.8.1-rapidpro-7.4.2
 ----------
 * Fix wac integration
