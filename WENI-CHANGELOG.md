@@ -1,3 +1,7 @@
+1.8.3-rapidpro-7.4.2
+----------
+* Update django-storages lib to 1.14.3
+
 1.8.2-rapidpro-7.4.2
 ----------
 * Fix boto3 version to 1.34.112
