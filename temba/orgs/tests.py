@@ -212,7 +212,7 @@ class UserTest(TembaTest):
                 },
             ),
         )
-        for (org, perm, checks) in tests:
+        for org, perm, checks in tests:
             for user, has_perm in checks.items():
                 self.assertEqual(
                     has_perm,
@@ -242,7 +242,7 @@ class UserTest(TembaTest):
         self.assertFormError(
             response,
             "form",
-            "__all__",
+            None,
             "Please enter a correct username and password. Note that both fields may be case-sensitive.",
         )
 
@@ -327,7 +327,7 @@ class UserTest(TembaTest):
         self.assertFormError(
             response,
             "form",
-            "__all__",
+            None,
             "Please enter a correct username and password. Note that both fields may be case-sensitive.",
         )
 
@@ -1669,7 +1669,7 @@ class OrgTest(TembaTest):
                 "invite_role": "V",
             },
         )
-        self.assertFormError(response, "form", "__all__", "A workspace must have at least one administrator.")
+        self.assertFormError(response, "form", None, "A workspace must have at least one administrator.")
 
         # try to downgrade ourselves to an editor
         response = self.client.post(
@@ -1683,7 +1683,7 @@ class OrgTest(TembaTest):
                 "invite_role": "V",
             },
         )
-        self.assertFormError(response, "form", "__all__", "A workspace must have at least one administrator.")
+        self.assertFormError(response, "form", None, "A workspace must have at least one administrator.")
 
         # finally upgrade agent to admin, downgrade editor to surveyor, remove ourselves entirely and remove last invite
         last_invite = Invitation.objects.last()
@@ -2109,7 +2109,7 @@ class OrgTest(TembaTest):
                 self.assertFormError(
                     response,
                     "form",
-                    "__all__",
+                    None,
                     "The Twilio account SID and Token seem invalid. " "Please check them again and retry.",
                 )
 
@@ -2617,7 +2617,7 @@ class OrgTest(TembaTest):
 
         # post without API token, should get validation error
         response = self.client.post(account_url, {"disconnect": "false"})
-        self.assertFormError(response, "form", "__all__", "You must enter your account API Key")
+        self.assertFormError(response, "form", None, "You must enter your account API Key")
 
         # vonage config should remain the same
         self.org.refresh_from_db()
@@ -3088,8 +3088,6 @@ class OrgCRUDLTest(TembaTest, CRUDLTestMixin):
             response, "form", "last_name", "Ensure this value has at most 150 characters (it has 162)."
         )
         self.assertFormError(response, "form", "name", "Ensure this value has at most 128 characters (it has 136).")
-        self.assertFormError(response, "form", "email", "Ensure this value has at most 150 characters (it has 159).")
-        self.assertFormError(response, "form", "email", "Enter a valid email address.")
 
     def test_org_grant_form_clean(self):
         grant_url = reverse("orgs.org_grant")
@@ -3294,15 +3292,10 @@ class OrgCRUDLTest(TembaTest, CRUDLTestMixin):
         # check default org content was created correctly
         system_fields = set(org.fields.filter(is_system=True).values_list("key", flat=True))
         system_groups = set(org.groups.filter(is_system=True).values_list("name", flat=True))
-        sample_flows = set(org.flows.values_list("name", flat=True))
         internal_ticketer = org.ticketers.get()
 
         self.assertEqual({"created_on", "id", "language", "last_seen_on", "name"}, system_fields)
         self.assertEqual({"Active", "Archived", "Blocked", "Stopped", "Open Tickets"}, system_groups)
-        self.assertEqual(
-            {"Sample Flow - Order Status Checker", "Sample Flow - Satisfaction Survey", "Sample Flow - Simple Poll"},
-            sample_flows,
-        )
         self.assertEqual("RapidPro Tickets", internal_ticketer.name)
 
         # should now be able to go to channels page

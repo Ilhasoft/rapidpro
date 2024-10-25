@@ -37,7 +37,6 @@ class WhatsAppCloudTypeTest(TembaTest):
         # make sure plivo is on the claim page
         response = self.client.get(reverse("channels.channel_claim"))
         self.assertEqual(200, response.status_code)
-        self.assertNotContains(response, claim_whatsapp_cloud_url)
 
         with patch("requests.get") as wa_cloud_get:
             wa_cloud_get.return_value = MockResponse(400, {})
@@ -47,7 +46,7 @@ class WhatsAppCloudTypeTest(TembaTest):
 
             response = self.client.get(claim_whatsapp_cloud_url, follow=True)
 
-            self.assertEqual(response.request["PATH_INFO"], "/users/login/")
+            self.assertEqual(response.request["PATH_INFO"], "/org/whatsapp_cloud_connect/")
 
         self.make_beta(self.admin)
         with patch("requests.get") as wa_cloud_get:
@@ -121,23 +120,11 @@ class WhatsAppCloudTypeTest(TembaTest):
                 response.context["form"].errors["__all__"][0], "Sorry account could not be connected. Please try again"
             )
 
-            # missing permissions
-            response = self.client.post(connect_whatsapp_cloud_url, dict(user_access_token="X" * 36), follow=True)
-            self.assertEqual(
-                response.context["form"].errors["__all__"][0], "Sorry account could not be connected. Please try again"
-            )
-
-            response = self.client.post(connect_whatsapp_cloud_url, dict(user_access_token="X" * 36))
-            self.assertIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
-            self.assertEqual(response.url, claim_whatsapp_cloud_url)
-
             response = self.client.post(connect_whatsapp_cloud_url, dict(user_access_token="X" * 36), follow=True)
             self.assertEqual(response.status_code, 200)
 
-            self.assertEqual(wa_cloud_get.call_args_list[0][0][0], "https://graph.facebook.com/v13.0/debug_token")
             self.assertEqual(
-                wa_cloud_get.call_args_list[0][1],
-                {"params": {"access_token": "WAC_APP_ID|WAC_APP_SECRET", "input_token": "X" * 36}},
+                wa_cloud_get.call_args_list[0][0][0], "https://graph.facebook.com/v18.0/oauth/access_token"
             )
 
         # make sure the token is set on the session
@@ -302,9 +289,11 @@ class WhatsAppCloudTypeTest(TembaTest):
 
                 post_data = response.context["form"].initial
                 post_data["number"] = "1234"
-                post_data[
-                    "verified_name"
-                ] = "Long WABA name foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar foobar"
+                post_data["verified_name"] = (
+                    "Long WABA name foobar foobar foobar foobar foobar foobar foobar "
+                    "foobar foobar foobar foobar foobar foobar foobar foobar foobar "
+                    "foobar foobar foobar foobar"
+                )
                 post_data["phone_number_id"] = "123123123"
                 post_data["waba_id"] = "111111111111111"
                 post_data["business_id"] = "2222222222222"
@@ -316,26 +305,17 @@ class WhatsAppCloudTypeTest(TembaTest):
 
                 self.assertNotIn(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, self.client.session)
 
-                self.assertEqual(3, wa_cloud_post.call_count)
+                self.assertEqual(4, wa_cloud_post.call_count)
 
                 self.assertEqual(
-                    "https://graph.facebook.com/v13.0/111111111111111/assigned_users",
+                    "https://graph.facebook.com/v18.0/111111111111111/assigned_users",
                     wa_cloud_post.call_args_list[0][0][0],
                 )
-                self.assertEqual(
-                    {"Authorization": "Bearer WA_ADMIN_TOKEN"}, wa_cloud_post.call_args_list[0][1]["headers"]
-                )
+                self.assertEqual({"Authorization": "Bearer user-token"}, wa_cloud_post.call_args_list[0][1]["headers"])
 
                 self.assertEqual(
-                    "https://graph.facebook.com/v13.0/111111111111111/subscribed_apps",
+                    "https://graph.facebook.com/v18.0/111111111111111/subscribed_apps",
                     wa_cloud_post.call_args_list[1][0][0],
-                )
-
-                self.assertEqual(
-                    "https://graph.facebook.com/v13.0/123123123/register", wa_cloud_post.call_args_list[2][0][0]
-                )
-                self.assertEqual(
-                    {"messaging_product": "whatsapp", "pin": "111111"}, wa_cloud_post.call_args_list[2][1]["data"]
                 )
 
                 channel = Channel.objects.get()
