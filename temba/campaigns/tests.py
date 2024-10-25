@@ -396,7 +396,7 @@ class CampaignTest(TembaTest):
         )
 
         self.assertFormError(
-            response, "form", "__all__", f"Translation for 'Default' exceeds the {Msg.MAX_TEXT_LEN} character limit."
+            response, "form", None, f"Translation for 'Default' exceeds the {Msg.MAX_TEXT_LEN} character limit."
         )
 
         post_data = dict(

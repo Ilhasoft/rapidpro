@@ -953,7 +953,7 @@
             },
             {
               "addresses": [
-                "ilanna.lins@weni.ai"
+                "admin@weni.ai"
               ],
               "body": "A new survey was just completed by @contact (@(format_urn(urns.tel))).\n\nShop Again: @results.shop_again  \nRecommend: @results.recommend \nSuggestion: \"@results.suggestion\"\n\nSurvey completed by @results.age year old @results.gender.category_localized at @results.gender.created_on.",
               "subject": "New Survey Completion",
@@ -1621,7 +1621,7 @@
             },
             {
               "addresses": [
-                "ilanna.lins@weni.ai"
+                "admin@weni.ai"
               ],
               "body": "Customer @results.order_name has a problem with their order @results.order_number for @results.order_description.  Please look into it ASAP and call them back with the status.\n \nCustomer Comment: \"@results.comment\"\nCustomer Name: @results.order_name\nCustomer Phone: @(format_urn(urns.tel)) ",
               "subject": "Order Comment: @results.lookup: @results.order_number",
