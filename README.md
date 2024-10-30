@@ -7,6 +7,12 @@
 # RapidPro [![Build Status](https://github.com/Ilhasoft/rapidpro/workflows/CI/badge.svg)](https://github.com/Ilhasoft/rapidpro/actions?query=workflow%3ACI) [![codecov](https://codecov.io/gh/rapidpro/rapidpro/branch/master/graph/badge.svg)](https://codecov.io/gh/rapidpro/rapidpro)
 
 RapidPro is a platform for visually building interactive messaging applications.
+# TextIt
+
+[![Build Status](https://github.com/nyaruka/rapidpro/workflows/CI/badge.svg)](https://github.com/nyaruka/rapidpro/actions?query=workflow%3ACI) 
+[![codecov](https://codecov.io/gh/nyaruka/rapidpro/branch/main/graph/badge.svg)](https://codecov.io/gh/nyaruka/rapidpro)
+
+TextIt is a hosted service for visually building interactive messaging applications.
 To learn more, please visit the project site at http://rapidpro.github.io/rapidpro.
 
 ### Stable Versions

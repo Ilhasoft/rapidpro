@@ -226,22 +226,9 @@ INSTALLED_APPS += (
     "elasticapm.contrib.django",
     # gRPC
     "django_grpc_framework",
-    # Weni apps
-    "weni.template_message",
-    "weni.channel_stats",
-    "weni.analytics_api",
-    "weni.grpc.core",
-    "weni.grpc.org",
-    "weni.grpc.user",
-    "weni.grpc.flow",
-    "weni.grpc.billing",
-    "weni.grpc.statistic",
-    "weni.orgs_api",
     # OIDC authentication
     "mozilla_django_oidc",
     "weni.auth",
-    # Templates (django-template-macros)
-    "macros",
     "corsheaders",
 )
 

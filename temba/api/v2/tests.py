@@ -293,8 +293,8 @@ class FieldsTest(TembaTest):
         field = fields.TranslatableField(source="test", max_length=10)
         field._context = {"org": self.org}
 
-        self.assertEqual(field.to_internal_value("Hello"), ({"base": "Hello"}, "base"))
-        self.assertEqual(field.to_internal_value({"base": "Hello"}), ({"base": "Hello"}, "base"))
+        self.assertEqual(field.to_internal_value("Hello"), ({"eng": "Hello"}, "eng"))
+        self.assertEqual(field.to_internal_value({"eng": "Hello"}), ({"eng": "Hello"}, "eng"))
 
         self.org.set_flow_languages(self.admin, ["kin"])
         self.org.save()
@@ -878,7 +878,7 @@ class EndpointsTest(TembaTest):
                 "urns": [],
                 "contacts": [{"uuid": self.joe.uuid, "name": self.joe.name}],
                 "groups": [],
-                "text": {"base": "Hello 2"},
+                "text": {"eng": "Hello 2"},
                 "status": "queued",
                 "created_on": format_datetime(bcast2.created_on),
             },
@@ -890,7 +890,7 @@ class EndpointsTest(TembaTest):
                 "urns": ["twitter:franky"],
                 "contacts": [{"uuid": self.joe.uuid, "name": self.joe.name}],
                 "groups": [{"uuid": reporters.uuid, "name": reporters.name}],
-                "text": {"base": "Hello 4"},
+                "text": {"eng": "Hello 4"},
                 "status": "failed",
                 "created_on": format_datetime(bcast4.created_on),
             },
@@ -936,7 +936,7 @@ class EndpointsTest(TembaTest):
         )
 
         broadcast = Broadcast.objects.get(id=response.json()["id"])
-        self.assertEqual({"base": "Hi @(format_urn(urns.tel))"}, broadcast.text)
+        self.assertEqual({"eng": "Hi @(format_urn(urns.tel))"}, broadcast.text)
         self.assertEqual(["twitter:franky"], broadcast.raw_urns)
         self.assertEqual({self.joe, self.frank}, set(broadcast.contacts.all()))
         self.assertEqual({reporters}, set(broadcast.groups.all()))
@@ -946,17 +946,17 @@ class EndpointsTest(TembaTest):
 
         # create new broadcast with translations
         response = self.postJSON(
-            url, None, {"text": {"base": "Hello", "fra": "Bonjour"}, "contacts": [self.joe.uuid, self.frank.uuid]}
+            url, None, {"text": {"eng": "Hello", "fra": "Bonjour"}, "contacts": [self.joe.uuid, self.frank.uuid]}
         )
 
         broadcast = Broadcast.objects.get(id=response.json()["id"])
-        self.assertEqual({"base": "Hello", "fra": "Bonjour"}, broadcast.text)
+        self.assertEqual({"eng": "Hello", "fra": "Bonjour"}, broadcast.text)
         self.assertEqual({self.joe, self.frank}, set(broadcast.contacts.all()))
 
         # create new broadcast with an expression
         response = self.postJSON(url, None, {"text": "You are @fields.age", "contacts": [self.joe.uuid]})
         broadcast = Broadcast.objects.get(id=response.json()["id"])
-        self.assertEqual({"base": "You are @fields.age"}, broadcast.text)
+        self.assertEqual({"eng": "You are @fields.age"}, broadcast.text)
 
         # try sending as a flagged org
         self.org.flag()
@@ -1166,8 +1166,9 @@ class EndpointsTest(TembaTest):
 
         # can't update campaign in other org
         response = self.postJSON(url, "uuid=%s" % spam.uuid, {"name": "Won't work", "group": spammers.uuid})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Campaign matches the given query."})
+        self.assert404(response)
+        # self.assertEqual(response.status_code, 404)
+        # self.assertEqual(response.json(), {"detail": "No Campaign matches the given query."})
 
     def test_campaigns_does_not_update_inactive_archived(self):
         url = reverse("api.v2.campaigns")
@@ -1283,7 +1284,7 @@ class EndpointsTest(TembaTest):
                     "unit": "days",
                     "delivery_hour": -1,
                     "flow": None,
-                    "message": {"base": "Don't forget to brush your teeth"},
+                    "message": {"eng": "Don't forget to brush your teeth"},
                     "created_on": format_datetime(event1.created_on),
                 },
             ],
@@ -1363,7 +1364,7 @@ class EndpointsTest(TembaTest):
         self.assertEqual(event1.offset, 15)
         self.assertEqual(event1.unit, "W")
         self.assertEqual(event1.delivery_hour, -1)
-        self.assertEqual(event1.message, {"base": "You are @fields.age"})
+        self.assertEqual(event1.message, {"eng": "You are @fields.age"})
         self.assertIsNotNone(event1.flow)
 
         # a message event with an empty message
@@ -1403,7 +1404,7 @@ class EndpointsTest(TembaTest):
         self.assertEqual(event1.offset, 15)
         self.assertEqual(event1.unit, "D")
         self.assertEqual(event1.delivery_hour, -1)
-        self.assertEqual(event1.message, {"base": "Nice unit of work @fields.code"})
+        self.assertEqual(event1.message, {"eng": "Nice unit of work @fields.code"})
         self.assertIsNotNone(event1.flow)
 
         # create a flow event
@@ -1472,14 +1473,14 @@ class EndpointsTest(TembaTest):
                 "offset": 15,
                 "unit": "weeks",
                 "delivery_hour": -1,
-                "message": {"base": "OK @(format_urn(urns.tel))", "fra": "D'accord"},
+                "message": {"eng": "OK @(format_urn(urns.tel))", "fra": "D'accord"},
             },
         )
         self.assertEqual(response.status_code, 200)
 
         event2 = CampaignEvent.objects.filter(campaign=campaign1).order_by("-id").first()
         self.assertEqual(event2.event_type, CampaignEvent.TYPE_MESSAGE)
-        self.assertEqual(event2.message, {"base": "OK @(format_urn(urns.tel))", "fra": "D'accord"})
+        self.assertEqual(event2.message, {"eng": "OK @(format_urn(urns.tel))", "fra": "D'accord"})
 
         # and update update it's message again
         response = self.postJSON(
@@ -1491,14 +1492,14 @@ class EndpointsTest(TembaTest):
                 "offset": 15,
                 "unit": "weeks",
                 "delivery_hour": -1,
-                "message": {"base": "OK", "fra": "D'accord", "kin": "Sawa"},
+                "message": {"eng": "OK", "fra": "D'accord", "kin": "Sawa"},
             },
         )
         self.assertEqual(response.status_code, 200)
 
         event2 = CampaignEvent.objects.filter(campaign=campaign1).order_by("-id").first()
         self.assertEqual(event2.event_type, CampaignEvent.TYPE_MESSAGE)
-        self.assertEqual(event2.message, {"base": "OK", "fra": "D'accord", "kin": "Sawa"})
+        self.assertEqual(event2.message, {"eng": "OK", "fra": "D'accord", "kin": "Sawa"})
 
         # try to change an existing event's campaign
         response = self.postJSON(
@@ -2113,13 +2114,11 @@ class EndpointsTest(TembaTest):
 
         # try to update a contact with non-existent UUID
         response = self.postJSON(url, "uuid=ad6acad9-959b-4d70-b144-5de2891e4d00", {})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
+        self.assert404(response)
 
         # try to update a contact in another org
         response = self.postJSON(url, "uuid=%s" % hans.uuid, {})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
+        self.assert404(response)
 
         # try to add a contact to a dynamic group
         response = self.postJSON(url, "uuid=%s" % jean.uuid, {"groups": [dyn_group.uuid]})
@@ -2185,13 +2184,11 @@ class EndpointsTest(TembaTest):
 
         # try deleting a contact by a non-existent URN
         response = self.deleteJSON(url, "urn=twitter:billy")
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
+        self.assert404(response)
 
         # try to delete a contact in another org
         response = self.deleteJSON(url, "uuid=%s" % hans.uuid)
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Contact matches the given query."})
+        self.assert404(response)
 
     def test_prevent_modifying_contacts_with_fields_that_have_null_chars(self):
         """
@@ -2746,13 +2743,11 @@ class EndpointsTest(TembaTest):
 
         # try to update with key of deleted field
         response = self.postJSON(url, "key=deleted", {"name": "Something", "type": "text"})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No ContactField matches the given query."})
+        self.assert404(response)
 
         # try to update with non-existent key
         response = self.postJSON(url, "key=not_ours", {"name": "Something", "type": "text"})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No ContactField matches the given query."})
+        self.assert404(response)
 
         # try to change type of date field used by campaign event
         response = self.postJSON(url, "key=registered", {"name": "Registered", "type": "text"})
@@ -3203,8 +3198,7 @@ class EndpointsTest(TembaTest):
 
         # can't update a group from other org
         response = self.postJSON(url, "uuid=%s" % spammers.uuid, {"name": "Won't work"})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No ContactGroup matches the given query."})
+        self.assert404(response)
 
         # try an empty delete request
         response = self.deleteJSON(url, None)
@@ -3224,8 +3218,7 @@ class EndpointsTest(TembaTest):
 
         # can't delete a group in another org
         response = self.deleteJSON(url, "uuid=%s" % spammers.uuid)
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No ContactGroup matches the given query."})
+        self.assert404(response)
 
         for group in ContactGroup.objects.filter(is_system=False):
             group.release(self.admin)
@@ -3361,8 +3354,7 @@ class EndpointsTest(TembaTest):
 
         # can't update label from other org
         response = self.postJSON(url, f"uuid={spam.uuid}", {"name": "Won't work"})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Label matches the given query."})
+        self.assert404(response)
 
         # try an empty delete request
         response = self.deleteJSON(url, None)
@@ -3378,8 +3370,7 @@ class EndpointsTest(TembaTest):
 
         # try to delete a label in another org
         response = self.deleteJSON(url, f"uuid={spam.uuid}")
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Label matches the given query."})
+        self.assert404(response)
 
         # try creating a new label after reaching the limit on labels
         current_count = Label.objects.filter(org=self.org, is_active=True).count()
@@ -3578,8 +3569,8 @@ class EndpointsTest(TembaTest):
                 "uuid": str(self.org.uuid),
                 "name": "Nyaruka",
                 "country": "RW",
-                "languages": [],
-                "primary_language": None,
+                "languages": ["eng", "kin"],
+                "primary_language": "eng",
                 "timezone": "Africa/Kigali",
                 "date_style": "day_first",
                 "credits": {"used": -1, "remaining": -1},
@@ -3587,7 +3578,7 @@ class EndpointsTest(TembaTest):
             },
         )
 
-        self.org.set_flow_languages(self.admin, ["eng", "fra"])
+        self.org.set_flow_languages(self.admin, ["kin"])
 
         response = self.fetchJSON(url)
         self.assertEqual(
@@ -3596,8 +3587,8 @@ class EndpointsTest(TembaTest):
                 "uuid": str(self.org.uuid),
                 "name": "Nyaruka",
                 "country": "RW",
-                "languages": ["eng", "fra"],
-                "primary_language": "eng",
+                "languages": ["kin"],
+                "primary_language": "kin",
                 "timezone": "Africa/Kigali",
                 "date_style": "day_first",
                 "credits": {"used": -1, "remaining": -1},
@@ -4164,8 +4155,7 @@ class EndpointsTest(TembaTest):
 
         # try to delete a subscriber from another org
         response = self.deleteJSON(url, "id=%d" % other_org_subscriber.id)
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No ResthookSubscriber matches the given query."})
+        self.assert404(response)
 
         # ok, let's look at the events on this resthook
         url = reverse("api.v2.resthook_events")
@@ -5009,8 +4999,7 @@ class EndpointsTest(TembaTest):
 
         # can't update topic from other org
         response = self.postJSON(url, "uuid=%s" % other_org.uuid, {"name": "Won't work"})
-        self.assertEqual(response.status_code, 404)
-        self.assertEqual(response.json(), {"detail": "No Topic matches the given query."})
+        self.assert404(response)
 
         # can't update topic to same name as existing topic
         response = self.postJSON(url, "uuid=%s" % support.uuid, {"name": "General"})
