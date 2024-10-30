@@ -1,3 +1,7 @@
+1.7.23-rapidpro-7.5.149
+----------
+* Update RapidPro with version 7.5.149
+
 1.7.23-rapidpro-7.5.129
 ----------
 * Add business_management permission for instagram and facebook
