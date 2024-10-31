@@ -43,8 +43,6 @@ chardet==4.0.0 ; python_version >= "2.7" and python_full_version < "3.0.0" or py
     # via
     #   -r ../pip-requires.txt
     #   requests
-colorama==0.4.4 ; (python_version >= "2.7" and python_full_version < "3.0.0") or python_full_version >= "3.5.0"
-    # via -r ../pip-requires.txt
 cryptography==3.4.7 ; python_version >= "3.6"
     # via
     #   -r ../pip-requires.txt
@@ -87,8 +85,6 @@ django-redis==4.12.1 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
 django-storages==1.11.1 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
-django-templates-macros==0.2
-    # via -r pip-requires.txt
 django-timezone-field==4.1.2 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
 djangorestframework==3.12.4 ; python_version >= "3.5"
@@ -212,7 +208,7 @@ pysocks==1.7.1 ; python_version >= "3.0" and python_full_version < "3.0.0" or py
     # via
     #   -r ../pip-requires.txt
     #   twilio
-python-dateutil==2.2
+python-dateutil==2.8.2
     # via
     #   -r ../pip-requires.txt
     #   analytics-python

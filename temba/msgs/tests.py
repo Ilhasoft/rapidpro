@@ -328,7 +328,6 @@ class MsgTest(TembaTest):
         # test a hard delete as part of a contact removal
         msg2.delete()
         self.assertEqual(2, Msg.objects.all().count())
-        self.assertEqual(0, msg2.channel_logs.count())  # logs should be gone
 
     def test_get_sync_commands(self):
         msg1 = self.create_outgoing_msg(self.joe, "Hello, we heard from you.")
@@ -1234,13 +1233,13 @@ class MsgTest(TembaTest):
         response = self.client.post(
             export_url + "?l=I", {"export_all": 1, "start_date": "2200-01-01", "end_date": "2022-09-28"}
         )
-        self.assertFormError(response, "form", "__all__", "Start date can't be in the future.")
+        self.assertFormError(response, "form", None, "Start date can't be in the future.")
 
         # try to submit with start date > end date
         response = self.client.post(
             export_url + "?l=I", {"export_all": 1, "start_date": "2022-09-01", "end_date": "2022-03-01"}
         )
-        self.assertFormError(response, "form", "__all__", "End date can't be before start date.")
+        self.assertFormError(response, "form", None, "End date can't be before start date.")
 
         # test as anon org to check that URNs don't end up in exports
         with AnonymousOrg(self.org):

@@ -1,3 +1,49 @@
+1.7.23-rapidpro-7.5.149
+----------
+* Update RapidPro with version 7.5.149
+
+1.7.23-rapidpro-7.5.129
+----------
+* Add business_management permission for instagram and facebook
+
+1.7.22-rapidpro-7.5.129
+----------
+* Fix error in org/manage url
+
+1.7.21-rapidpro-7.5.129
+----------
+* Fix: WhatsApp Cloud connect
+* Fix: Add WhatsApp Cloud connect permission to admin
+
+1.7.20-rapidpro-7.5.129
+----------
+* Hotfix: Update python-dateutil lib and WhatsappCloud type
+
+1.7.19-rapidpro-7.5.129
+----------
+* Update python-dateutil lib version
+* Show WhatsAppCloud in add channels
+
+1.7.18-rapidpro-7.5.129
+----------
+* Fix branding
+
+1.7.17-rapidpro-7.5.129
+----------
+* Fix branding hosts
+
+1.7.16-rapidpro-7.5.129
+----------
+* Fix compress and branding
+
+1.7.15-rapidpro-7.5.129
+----------
+* Fix invalid template name
+
+1.7.14-rapidpro-7.5.129
+----------
+* Update RapidPro with version 7.5.129
+
 1.7.14-rapidpro-7.5.91
 ----------
 * Feat: New Embed Signup process

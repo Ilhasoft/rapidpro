@@ -121,7 +121,7 @@ TESTFILES_DIR = os.path.join(PROJECT_DIR, "../testfiles")
 STATICFILES_DIRS = (
     os.path.join(PROJECT_DIR, "../static"),
     os.path.join(PROJECT_DIR, "../media"),
-    os.path.join(PROJECT_DIR, "../node_modules/@weni/flow-editor-rp/build"),
+    os.path.join(PROJECT_DIR, "../node_modules/@nyaruka/flow-editor/build"),
     os.path.join(PROJECT_DIR, "../node_modules/@nyaruka/temba-components/dist/static"),
     os.path.join(PROJECT_DIR, "../node_modules"),
     os.path.join(PROJECT_DIR, "../node_modules/react/umd"),
@@ -453,7 +453,7 @@ PERMISSIONS = {
 GROUP_PERMISSIONS = {
     "Service Users": ("flows.flow_assets", "msgs.msg_create"),  # internal Temba services have limited permissions
     "Alpha": (),
-    "Beta": ("orgs.org_whatsapp_cloud_connect",),
+    "Beta": (),
     "Dashboard": ("orgs.org_dashboard",),
     "Surveyors": (
         "contacts.contact_api",
@@ -581,6 +581,7 @@ GROUP_PERMISSIONS = {
         "orgs.org_two_factor",
         "orgs.org_vonage_account",
         "orgs.org_vonage_connect",
+        "orgs.org_whatsapp_cloud_connect",
         "orgs.org_workspace",
         "request_logs.httplog_list",
         "request_logs.httplog_read",
@@ -676,6 +677,7 @@ GROUP_PERMISSIONS = {
         "orgs.org_token",
         "orgs.org_two_factor",
         "orgs.org_workspace",
+        "orgs.org_whatsapp_cloud_connect",
         "request_logs.httplog_webhooks",
         "schedules.schedule.*",
         "templates.template_api",

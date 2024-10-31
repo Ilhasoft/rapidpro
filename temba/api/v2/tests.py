@@ -1167,6 +1167,8 @@ class EndpointsTest(TembaTest):
         # can't update campaign in other org
         response = self.postJSON(url, "uuid=%s" % spam.uuid, {"name": "Won't work", "group": spammers.uuid})
         self.assert404(response)
+        # self.assertEqual(response.status_code, 404)
+        # self.assertEqual(response.json(), {"detail": "No Campaign matches the given query."})
 
     def test_campaigns_does_not_update_inactive_archived(self):
         url = reverse("api.v2.campaigns")
