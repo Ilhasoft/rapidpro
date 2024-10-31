@@ -1,3 +1,8 @@
+1.7.24-rapidpro-8.0.1
+----------
+* Update RapidPro with version 8.0.1
+* Fix: incorrect js identation
+
 1.7.23-rapidpro-7.5.149
 ----------
 * Update RapidPro with version 7.5.149
