@@ -451,7 +451,7 @@ class WhatsAppTypeTest(CRUDLTestMixin, TembaTest):
             "hi",
             "eng",
             "US",
-            "Hi {{1}}",
+            "Goodbye {{1}}",
             1,
             TemplateTranslation.STATUS_APPROVED,
             "1235",
@@ -466,7 +466,7 @@ class WhatsAppTypeTest(CRUDLTestMixin, TembaTest):
 
         # should have our template translations
         self.assertContains(response, "Hello")
-        self.assertContains(response, "Hi")
+        self.assertContains(response, "Goodbye")
         self.assertContentMenu(templates_url, self.admin, ["Sync Logs"])
 
         foo.is_active = False
@@ -475,7 +475,7 @@ class WhatsAppTypeTest(CRUDLTestMixin, TembaTest):
         response = self.client.get(templates_url)
         # should have our template translations
         self.assertContains(response, "Hello")
-        self.assertNotContains(response, "Hi")
+        self.assertNotContains(response, "Goodbye")
 
         # check if message templates link are in sync_logs view
         self.assertContentMenu(sync_url, self.admin, ["Message Templates"])
