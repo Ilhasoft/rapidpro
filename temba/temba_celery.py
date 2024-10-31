@@ -19,16 +19,4 @@ class TembaCelery(celery.Celery):
 app = TembaCelery("temba")
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
-app.autodiscover_tasks(
-    (
-        "temba.channels.types.jiochat",
-        "temba.channels.types.twitter",
-        "temba.channels.types.wechat",
-        "temba.channels.types.whatsapp",
-    )
-)
-
-# TODO: Move logic to settings.py.prod or rapidpro-apps
-app.conf.task_routes = {
-    "create_recent_activity": {"queue": "async"},
-}
+app.autodiscover_tasks(("temba.channels.types.twitter", "temba.channels.types.whatsapp"))
