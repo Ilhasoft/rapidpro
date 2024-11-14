@@ -450,13 +450,15 @@ class Flow(LegacyUUIDMixin, TembaModel, DependencyMixin):
         icon = (
             "flow_message"
             if self.flow_type == Flow.TYPE_MESSAGE
-            else "flow_ivr"
-            if self.flow_type == Flow.TYPE_VOICE
-            else "flow_background"
-            if self.flow_type == Flow.TYPE_BACKGROUND
-            else "flow_surveyor"
-            if self.flow_type == Flow.TYPE_SURVEY
-            else "flow"
+            else (
+                "flow_ivr"
+                if self.flow_type == Flow.TYPE_VOICE
+                else (
+                    "flow_background"
+                    if self.flow_type == Flow.TYPE_BACKGROUND
+                    else "flow_surveyor" if self.flow_type == Flow.TYPE_SURVEY else "flow"
+                )
+            )
         )
 
         return {"icon": icon, "type": self.flow_type, "uuid": self.uuid}

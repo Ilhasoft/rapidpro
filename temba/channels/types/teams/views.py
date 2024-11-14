@@ -40,9 +40,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
             except Exception:
                 raise forms.ValidationError(
-                    _(
-                        "Unable to complete login for your Microsoft Teams bot, please check information about your APP."
-                    )
+                    _("Unable to complete login for your Microsoft Teams bot, please check information about your APP.")
                 )
 
             return self.cleaned_data
