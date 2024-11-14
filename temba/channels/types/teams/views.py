@@ -18,7 +18,6 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
         def clean(self):
             try:
-
                 headers = {"Content-Type": "application/x-www-form-urlencoded"}
                 request_body = {
                     "client_id": self.cleaned_data["app_id"],

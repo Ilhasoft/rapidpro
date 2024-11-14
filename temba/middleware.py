@@ -10,7 +10,6 @@ from django.urls import reverse
 from django.utils import timezone, translation
 
 from temba.orgs.models import Org, User
-from temba.utils import brands
 
 from .context_processors_weni import use_weni_layout
 

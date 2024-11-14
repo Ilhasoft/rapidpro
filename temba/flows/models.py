@@ -451,13 +451,11 @@ class Flow(LegacyUUIDMixin, TembaModel, DependencyMixin):
             "flow_message"
             if self.flow_type == Flow.TYPE_MESSAGE
             else (
-                "flow_ivr"
-                if self.flow_type == Flow.TYPE_VOICE
-                else (
-                    "flow_background"
-                    if self.flow_type == Flow.TYPE_BACKGROUND
-                    else "flow_surveyor" if self.flow_type == Flow.TYPE_SURVEY else "flow"
-                )
+                "flow_background"
+                if self.flow_type == Flow.TYPE_BACKGROUND
+                else "flow_surveyor"
+                if self.flow_type == Flow.TYPE_SURVEY
+                else "flow"
             )
         )
 
