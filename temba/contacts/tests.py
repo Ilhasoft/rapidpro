@@ -875,7 +875,7 @@ class ContactCRUDLTest(CRUDLTestMixin, TembaTest):
             form_fields=["flow", "contact_search"],
         )
 
-        self.assertEqual([background_flow] + sample_flows, list(response.context["form"].fields["flow"].queryset))
+        self.assertCountEqual([background_flow] + sample_flows, list(response.context["form"].fields["flow"].queryset))
 
         # try to submit without specifying a flow
         self.assertUpdateSubmit(

@@ -62,7 +62,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        oauth_user_token = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
+        oauth_user_token = self.request.session.get(self.channel_type.SESSION_USER_TOKEN, None)
         app_id = settings.WHATSAPP_APPLICATION_ID
         app_secret = settings.WHATSAPP_APPLICATION_SECRET
 
@@ -127,7 +127,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
         context["claim_url"] = reverse("channels.types.whatsapp_cloud.claim")
         context["clear_session_token_url"] = reverse("channels.types.whatsapp_cloud.clear_session_token")
-        context["connect_whatsapp_url"] = reverse("orgs.org_whatsapp_cloud_connect")
+        context["connect_whatsapp_url"] = reverse("channels.types.whatsapp_cloud.connect")
         context["whatsapp_app_id"] = settings.WHATSAPP_APPLICATION_ID
         context["whatsapp_config_id"] = settings.WHATSAPP_CONFIGURATION_ID
 
@@ -143,7 +143,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         return context
 
     def form_valid(self, form):
-        user_auth = self.request.session.get(Channel.CONFIG_WHATSAPP_CLOUD_USER_TOKEN, None)
+        user_auth = self.request.session.get(self.channel_type.SESSION_USER_TOKEN, None)
         org = self.request.org
 
         number = form.cleaned_data["number"]
