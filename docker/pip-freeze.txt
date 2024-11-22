@@ -54,17 +54,6 @@ deprecated==1.2.12 ; python_full_version >= "3.4.0"
     #   vonage
 dj-database-url==0.5.0
     # via -r ../pip-requires.txt
-django==2.2.20 ; python_version >= "3.5"
-    # via
-    #   -r ../pip-requires.txt
-    #   django-appconf
-    #   django-csp
-    #   django-hamlpy
-    #   django-redis
-    #   django-storages
-    #   django-timezone-field
-    #   djangorestframework
-    #   smartmin
 django-appconf==1.0.4
     # via
     #   -r ../pip-requires.txt
