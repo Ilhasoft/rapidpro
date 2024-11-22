@@ -171,8 +171,6 @@ polib==1.1.1
     # via -r ../pip-requires.txt
 prometheus-client==0.8.0
     # via flower
-psycopg2-binary==2.8.6 ; (python_version >= "2.7" and python_full_version < "3.0.0") or python_full_version >= "3.4.0"
-    # via -r ../pip-requires.txt
 pycountry==18.12.8
     # via -r ../pip-requires.txt
 pycparser==2.20 ; python_version >= "3.6" and python_full_version < "3.0.0" or python_full_version >= "3.4.0" and python_version >= "3.6"
