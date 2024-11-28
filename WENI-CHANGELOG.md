@@ -1,3 +1,7 @@
+1.7.25-rapidpro-8.2.0
+----------
+* Update RapidPro with version 8.2.0
+
 1.7.25-rapidpro-8.0.1
 ----------
 * Update django storages version to 1.14.3
