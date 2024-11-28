@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.urls import reverse
 
 from temba.tests import TembaTest
@@ -6,7 +8,8 @@ from ...models import Channel
 
 
 class ShaqodoonTypeTest(TembaTest):
-    def test_claim(self):
+    @patch("socket.gethostbyname", return_value="123.123.123.123")
+    def test_claim(self, mock_socket_hostname):
         Channel.objects.all().delete()
 
         self.login(self.admin)
@@ -34,7 +37,7 @@ class ShaqodoonTypeTest(TembaTest):
         post_data["country"] = "SO"
         post_data["username"] = "uname"
         post_data["password"] = "pword"
-        post_data["url"] = "http://test.com/send.php"
+        post_data["url"] = "http://example.com/send.php"
         post_data["number"] = "301"
 
         response = self.client.post(url, post_data)
