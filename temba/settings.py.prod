@@ -86,6 +86,7 @@ BRANDS = [
     }
 ]
 HOSTNAME = DEFAULT_BRAND
+BRAND = BRANDS[0]
 
 # VARIABLES TO API REQUISITIONS
 # ------------------------------------------------------------------------------
