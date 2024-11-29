@@ -1,3 +1,7 @@
+1.7.28-rapidpro-8.2.0
+----------
+* Fix: WhatsApp Cloud connect context data
+
 1.7.27-rapidpro-8.2.0
 ----------
 * Fix: S3 storages
