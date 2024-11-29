@@ -418,6 +418,8 @@ class Connect(ChannelTypeMixin, OrgPermsMixin, SmartFormView):
         context = super().get_context_data(**kwargs)
         context["connect_url"] = reverse("channels.types.whatsapp_cloud.connect")
         context["facebook_app_id"] = settings.FACEBOOK_APPLICATION_ID
+        context["whatsapp_app_id"] = settings.WHATSAPP_APPLICATION_ID
+        context["whatsapp_config_id"] = settings.WHATSAPP_CONFIGURATION_ID
 
         claim_error = None
         if context["form"].errors:
