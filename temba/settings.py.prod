@@ -184,10 +184,36 @@ AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default=None)
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
+AWS_LOGS_BUCKET_NAME = env("AWS_LOGS_BUCKET_NAME")
 AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
 AWS_BUCKET_DOMAIN = env("AWS_BUCKET_DOMAIN", default=f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com")
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 STORAGE_URL = f"https://{AWS_BUCKET_DOMAIN}"
+
+STORAGES = {
+    # default storage for things like exports, imports
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {"bucket_name": AWS_STORAGE_BUCKET_NAME},
+    },
+    # wherever rp-archiver writes archive files (must be S3 compatible)
+    "archives": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {"bucket_name": AWS_STORAGE_BUCKET_NAME},
+    },
+    # wherever courier and mailroom are writing logs
+    "logs": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {"bucket_name": AWS_LOGS_BUCKET_NAME},
+    },
+    # media file uploads that need to be publicly accessible
+    "public": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {"bucket_name": AWS_STORAGE_BUCKET_NAME},
+    },
+    # standard Django static files storage
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+}
 
 # DEPRECATED
 # DEFAULT_FILE_STORAGE = env("DEFAULT_FILE_STORAGE", default="storages.backends.s3boto3.S3Boto3Storage")

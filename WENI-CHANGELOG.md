@@ -1,3 +1,7 @@
+1.7.27-rapidpro-8.2.0
+----------
+* Fix: S3 storages
+
 1.7.26-rapidpro-8.2.0
 ----------
 * Fix: BRAND setting
