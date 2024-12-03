@@ -9,7 +9,7 @@ COPY ./docker/pip-requires.txt .
 RUN python -m pip install -U poetry==1.8.4 \
  && poetry cache clear -n --all pypi \
  && poetry add -n --lock $(cat pip-requires.txt) \
- && poetry export --without-hashes --output requirements.txt
+ && poetry export --without-hashes --with dev --output requirements.txt
 
 FROM python:3.10-slim-bullseye
 
