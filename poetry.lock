@@ -1040,13 +1040,14 @@ files = [
 testing = ["nose (>=1.0)"]
 
 [[package]]
-name = "iso-639"
-version = "0.4.5"
-description = "Python library for ISO 639 standard"
+name = "iso639-lang"
+version = "2.5.1"
+description = "A fast, simple ISO 639 library."
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 files = [
-    {file = "iso-639-0.4.5.tar.gz", hash = "sha256:dc9cd4b880b898d774c47fe9775167404af8a85dd889d58f9008035109acce49"},
+    {file = "iso639_lang-2.5.1-py3-none-any.whl", hash = "sha256:ec24570fe0892c1a7ccdf1aad5ea4e5f0a745f9ac284c601d62d149c7a1943ce"},
+    {file = "iso639_lang-2.5.1.tar.gz", hash = "sha256:c9e311ec2b6f1005eb36d3a0a0f6bbf82898cb4d3cdf568b6aae4a0705a19dd5"},
 ]
 
 [[package]]
@@ -2419,4 +2420,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "e271e8931ee278e7bdc32b465e212cf025b4041367d57b6c0560c72c37768254"
+content-hash = "a83a8f3aef323de04fcd91c3a62419f5a0be826bc2e57b0824f510e99734d4bd"
