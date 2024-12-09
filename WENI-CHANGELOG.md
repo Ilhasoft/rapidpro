@@ -1,3 +1,7 @@
+1.7.29-rapidpro-8.2.0
+----------
+* Feat: Allow variable org channels limit
+
 1.7.28-rapidpro-8.2.0
 ----------
 * Fix: WhatsApp Cloud connect context data
