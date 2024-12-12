@@ -69,7 +69,7 @@ BRANDS = [
         "docs_link": brand_info.get("docs_link"),
         "domain": brand_info.get("domain"),
         "ticket_domain": brand_info.get("ticket_domain"),
-        "landing": {"hero: "brands/{}/splash.jpg".format(brand_info.get("folder"))},
+        "landing": {"hero": "brands/{}/splash.jpg".format(brand_info.get("folder"))},
         "logos": {"primary": "brands/{}/logo.png".format(brand_info.get("folder")), "favico": "brands/{}/push.ico".format(brand_info.get("folder"))},
         "allow_signups": bool(brand_info.get("allow_signups")),
         "flow_types": ["M", "V", "B", "S"],  # see Flow.FLOW_TYPES
