@@ -21,7 +21,6 @@ jobs:
             if grep -qs -e '^.*.*-develop' <<< "${TAG}" ; then
               echo "Found environment: DEVELOP - ${TAG}"
               echo "ENVIRONMENT=develop" | tee -a "${GITHUB_ENV}"
-              exit 1 # stop action
             elif grep -qs -e '^.*.*-staging' <<< "${TAG}" ; then
               echo "Found environment: STAGING - ${TAG}"
               echo "ENVIRONMENT=staging" | tee -a "${GITHUB_ENV}"
