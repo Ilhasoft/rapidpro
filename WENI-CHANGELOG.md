@@ -1,3 +1,7 @@
+1.7.30-rapidpro-9.0.0
+----------
+* Update RapidPro with version 9.0.0
+
 1.7.30-rapidpro-8.3.123
 ----------
 * Fix: settings branding syntax error
