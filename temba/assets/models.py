@@ -84,9 +84,16 @@ class BaseAssetStore:
 
         # if our storage backend is S3
         if isinstance(default_storage, S3Boto3Storage):  # pragma: needs cover
+            # This codition exists to attribute True in querystring_auth because in settings must be False
+            if "export" in self.directory:
+                default_storage.querystring_auth = True
+
             url = default_storage.url(
-                path, parameters=dict(ResponseContentDisposition=f"attachment;filename={filename}"), http_method="GET", querystring_auth=True,
+                path, parameters=dict(ResponseContentDisposition=f"attachment;filename={filename}"), http_method="GET"
             )
+
+            # TODO: remove this code to avoid setting AWS attribute
+            default_storage.querystring_auth = False
 
         # otherwise, let the backend generate the URL
         else:
