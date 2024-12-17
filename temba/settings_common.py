@@ -377,6 +377,8 @@ PERMISSIONS = {
         "twilio_account",
         "twilio_connect",
         "workspace",
+        "org_whatsapp_cloud_connect",
+
     ),
     "orgs.user": ("token",),
     "request_logs.httplog": ("webhooks", "classifier"),
