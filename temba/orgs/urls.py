@@ -2,7 +2,6 @@ from django.conf.urls import include
 from django.urls import re_path
 
 from .models import IntegrationType
-# from .password_forget import UserCRUDL
 from .views import (
     ConfirmAccessView,
     ExportCRUDL,
@@ -17,7 +16,6 @@ from .views import (
 
 urlpatterns = OrgCRUDL().as_urlpatterns()
 urlpatterns += OrgImportCRUDL().as_urlpatterns()
-# urlpatterns += UserCRUDL().as_urlpatterns()
 urlpatterns += InvitationCRUDL().as_urlpatterns()
 urlpatterns += ExportCRUDL().as_urlpatterns()
 
