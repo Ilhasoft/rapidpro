@@ -560,8 +560,8 @@ class ChannelTest(TembaTest, CRUDLTestMixin):
         self.assertEqual(response.context["channel_types"]["PHONE"][-1].code, "A")
 
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][0].code, "D3C")
-        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][1].code, "DS")
-        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][2].code, "FBA")
+        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][1].code, "FBA")
+        self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][2].code, "DS")
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-2].code, "ZVW")
         self.assertEqual(response.context["channel_types"]["SOCIAL_MEDIA"][-1].code, "TM")
 

@@ -11,11 +11,13 @@ from .views import (
     OrgImportCRUDL,
     TwoFactorBackupView,
     TwoFactorVerifyView,
+    UserCRUDL,
     check_login,
 )
 
 urlpatterns = OrgCRUDL().as_urlpatterns()
 urlpatterns += OrgImportCRUDL().as_urlpatterns()
+urlpatterns += UserCRUDL().as_urlpatterns()
 urlpatterns += InvitationCRUDL().as_urlpatterns()
 urlpatterns += ExportCRUDL().as_urlpatterns()
 
