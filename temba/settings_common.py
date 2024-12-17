@@ -482,6 +482,7 @@ GROUP_PERMISSIONS = {
         "orgs.org_resthooks",
         "orgs.org_sub_orgs",
         "orgs.org_workspace",
+        "orgs.org_whatsapp_cloud_connect",
         "orgs.orgimport.*",
         "orgs.user_list",
         "orgs.user_token",
