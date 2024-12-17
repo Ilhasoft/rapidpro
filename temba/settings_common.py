@@ -485,7 +485,6 @@ GROUP_PERMISSIONS = {
         "orgs.orgimport.*",
         "orgs.user_list",
         "orgs.user_token",
-        "orgs.user_update",
         "request_logs.httplog_list",
         "request_logs.httplog_read",
         "request_logs.httplog_webhooks",
