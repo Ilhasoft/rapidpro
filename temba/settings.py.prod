@@ -14,7 +14,7 @@ env = environ.Env()
 DEBUG = env.bool("DEBUG", default=False)
 IS_PROD = env.bool("IS_PROD", default=True)
 IP_ADDRESSES = env.tuple("IP_ADDRESSES", default=("localhost",))
-SECRET_KEY = env("SECRET_KEY")
+SECRET_KEY = env("SECRET_KEY", default="SECRET_KEY")
 USER_TIME_ZONE = env("USER_TIME_ZONE", default="America/Sao_Paulo")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS", default=["*"])
 TEMPLATE_DEBUG = DEBUG
@@ -144,7 +144,7 @@ MIDDLEWARE += (
 
 # REDIS
 # ------------------------------------------------------------------------------
-REDIS_HOST = env("REDIS_HOST")
+REDIS_HOST = env("REDIS_HOST", default="REDIS_HOST")
 REDIS_PORT = env("REDIS_PORT", default=6379)
 REDIS_DB = env("REDIS_DB", default=10)
 REDIS_URL = "redis://{}:{}/{}".format(REDIS_HOST, REDIS_PORT, REDIS_DB)
