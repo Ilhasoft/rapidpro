@@ -64,8 +64,6 @@ django-countries==7.1
     # via -r ../pip-requires.txt
 django-csp==3.7
     # via -r pip-requires.txt
-django-environ==0.4.5
-    # via -r pip-requires.txt
 django-hamlpy==1.4.3 ; python_version >= "3.6" and python_version < "4.0"
     # via -r ../pip-requires.txt
 django-mptt==0.8.7
