@@ -14,7 +14,7 @@ env = environ.Env()
 DEBUG = env.bool("DEBUG", default=False)
 IS_PROD = env.bool("IS_PROD", default=True)
 IP_ADDRESSES = env.tuple("IP_ADDRESSES", default=("localhost",))
-SECRET_KEY = env("SECRET_KEY", default="SECRET_KEY")
+SECRET_KEY = env("SECRET_KEY")
 USER_TIME_ZONE = env("USER_TIME_ZONE", default="America/Sao_Paulo")
 ALLOWED_HOSTS = env("ALLOWED_HOSTS", default=["*"])
 TEMPLATE_DEBUG = DEBUG
@@ -144,25 +144,23 @@ MIDDLEWARE += (
 
 # REDIS
 # ------------------------------------------------------------------------------
-REDIS_HOST = env("REDIS_HOST", default="REDIS_HOST")
+REDIS_HOST = env("REDIS_HOST")
 REDIS_PORT = env("REDIS_PORT", default=6379)
 REDIS_DB = env("REDIS_DB", default=10)
 REDIS_URL = "redis://{}:{}/{}".format(REDIS_HOST, REDIS_PORT, REDIS_DB)
 
 # DATABASE
 # ------------------------------------------------------------------------------
-# DATABASES = {}
-# DATABASES["default"] = env.db("DATABASE_URL", default="")
-# DATABASES["default"]["ATOMIC_REQUESTS"] = True
-# DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
+DATABASES = {}
+DATABASES["default"] = env.db("DATABASE_URL")
+DATABASES["default"]["ATOMIC_REQUESTS"] = True
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 
-# if env.bool("DATABASE_USE_SSL", default=True):
-#    if "OPTIONS" not in DATABASES["default"]:
-#            DATABASES["default"]["OPTIONS"] = {}
-#    DATABASES["default"]["OPTIONS"]["sslmode"] = "verify-ca"
-#    DATABASES["default"]["OPTIONS"]["sslrootcert"] = "/etc/ssl/certs/rds.pem"
+if env.bool("DATABASE_USE_SSL", default=True):
+    DATABASES["default"]["OPTIONS"]["sslmode"] = "verify-ca"
+    DATABASES["default"]["OPTIONS"]["sslrootcert"] = "/etc/ssl/certs/rds.pem"
 
-# DATABASES["readonly"] = DATABASES["default"].copy()
+DATABASES["readonly"] = DATABASES["default"].copy()
 
 # BROKER
 # ------------------------------------------------------------------------------
@@ -182,10 +180,10 @@ CACHES = {
 # AWS BUCKET AND MEDIA STORAGE
 # ------------------------------------------------------------------------------
 AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default=None)
-AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="AWS_SECRET_ACCESS_KEY")
-AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="AWS_STORAGE_BUCKET_NAME")
-AWS_LOGS_BUCKET_NAME = env("AWS_LOGS_BUCKET_NAME", default="AWS_LOGS_BUCKET_NAME")
+AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME")
+AWS_LOGS_BUCKET_NAME = env("AWS_LOGS_BUCKET_NAME")
 AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
 AWS_BUCKET_DOMAIN = env("AWS_BUCKET_DOMAIN", default=f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com")
 AWS_S3_SIGNATURE_VERSION = "s3v4"
@@ -222,7 +220,7 @@ STORAGES = {
 S3_NETWORK_TIMEOUT = env.int("S3_NETWORK_TIMEOUT", default=120)
 S3_NETWORK_RETRY_COUNT = env.int("S3_NETWORK_RETRY_COUNT", default=5)
 
-COURIER_S3_ENDPOINT = env("COURIER_S3_ENDPOINT", default="COURIER_S3_ENDPOINT")
+COURIER_S3_ENDPOINT = env("COURIER_S3_ENDPOINT")
 
 # CELERY
 # ------------------------------------------------------------------------------
@@ -239,12 +237,12 @@ TWITTER_API_SECRET = env("TWITTER_API_SECRET", default="")
 
 # MAILROOM
 # ------------------------------------------------------------------------------
-MAILROOM_URL = env("MAILROOM_URL", default="MAILROOM_URL")
-MAILROOM_AUTH_TOKEN = env("MAILROOM_AUTH_TOKEN", default="MAILROOM_AUTH_TOKEN")
+MAILROOM_URL = env("MAILROOM_URL")
+MAILROOM_AUTH_TOKEN = env("MAILROOM_AUTH_TOKEN")
 
 # ELASTIC SEARCH
 # ------------------------------------------------------------------------------
-ELASTICSEARCH_URL = env("ELASTICSEARCH_URL", default="")
+ELASTICSEARCH_URL = env("ELASTICSEARCH_URL")
 
 # APPS
 # ------------------------------------------------------------------------------
@@ -348,12 +346,12 @@ GRPC_FRAMEWORK = {
 # OpenID Connect settings
 # https://mozilla-django-oidc.readthedocs.io/en/stable/installation.html#add-settings-to-settings-py
 # --------------------------------------------------------------------------------------------------
-OIDC_RP_CLIENT_ID = env("OIDC_RP_CLIENT_ID", default="")
-OIDC_RP_CLIENT_SECRET = env("OIDC_RP_CLIENT_SECRET", default="")
-OIDC_OP_AUTHORIZATION_ENDPOINT = env("OIDC_OP_AUTHORIZATION_ENDPOINT", default="")
-OIDC_OP_TOKEN_ENDPOINT = env("OIDC_OP_TOKEN_ENDPOINT", default="")
-OIDC_OP_USER_ENDPOINT = env("OIDC_OP_USER_ENDPOINT", default="")
-OIDC_OP_JWKS_ENDPOINT = env("OIDC_OP_JWKS_ENDPOINT", default="")
+OIDC_RP_CLIENT_ID = env("OIDC_RP_CLIENT_ID")
+OIDC_RP_CLIENT_SECRET = env("OIDC_RP_CLIENT_SECRET")
+OIDC_OP_AUTHORIZATION_ENDPOINT = env("OIDC_OP_AUTHORIZATION_ENDPOINT")
+OIDC_OP_TOKEN_ENDPOINT = env("OIDC_OP_TOKEN_ENDPOINT")
+OIDC_OP_USER_ENDPOINT = env("OIDC_OP_USER_ENDPOINT")
+OIDC_OP_JWKS_ENDPOINT = env("OIDC_OP_JWKS_ENDPOINT")
 OIDC_RP_SIGN_ALGO = env("OIDC_RP_SIGN_ALGO", default="RS256")
 OIDC_RP_SCOPES = env("OIDC_RP_SCOPES", default="openid email")
 OIDC_EXEMPT_URL_PATTERNS = [re.compile(url) for url in env.list("OIDC_EXEMPT_URL_PATTERNS", default=[])]
@@ -365,7 +363,7 @@ AUTHENTICATION_BACKENDS += ("weni.auth.backends.WeniOIDCAuthenticationBackend",)
 OIDC_DRF_AUTH_BACKEND = "weni.auth.backends.WeniOIDCAuthenticationBackend"
 
 # Used to enable authentication via Keycloak to legacy users
-SECRET_KEY_CHECK_LEGACY_USER = env("SECRET_KEY_CHECK_LEGACY_USER", default="")
+SECRET_KEY_CHECK_LEGACY_USER = env("SECRET_KEY_CHECK_LEGACY_USER")
 
 # By default, rapidpro redirects the user to choose an org after login. Inside Weni Connect, the org is already selected, so we can bypass and take user to msg inbox.
 LOGIN_REDIRECT_URL = env("LOGIN_REDIRECT_URL", default="/msg/inbox/")
@@ -387,14 +385,14 @@ SIDEBAR_EXCLUDE_PATHS = env.list("SIDEBAR_EXCLUDE_PATHS", default=[])
 SIDEBAR_ALLOWLIST = env.list("SIDEBAR_ALLOWLIST", default=[])
 
 # Weni announcement
-ANNOUNCEMENT_LEFT = env("ANNOUNCEMENT_LEFT", default="")
-ANNOUNCEMENT_RIGHT = env("ANNOUNCEMENT_RIGHT", default="")
-ANNOUNCEMENT_LINK = env("ANNOUNCEMENT_LINK", default="")
-ANNOUNCEMENT_BUTTON = env("ANNOUNCEMENT_BUTTON", default="")
+ANNOUNCEMENT_LEFT = env("ANNOUNCEMENT_LEFT")
+ANNOUNCEMENT_RIGHT = env("ANNOUNCEMENT_RIGHT")
+ANNOUNCEMENT_LINK = env("ANNOUNCEMENT_LINK")
+ANNOUNCEMENT_BUTTON = env("ANNOUNCEMENT_BUTTON")
 
 # LOGROCKET
-LOGROCKET_IDS = env.dict("LOGROCKET_IDS", default=[])
-PARENT_IFRAME_DOMAIN = env("PARENT_IFRAME_DOMAIN", default="")
+LOGROCKET_IDS = env.dict("LOGROCKET_IDS")
+PARENT_IFRAME_DOMAIN = env("PARENT_IFRAME_DOMAIN")
 
 # ------------------------------------------------------------------------------------------
 # Production-only: Adjust depending on your proxy
@@ -483,7 +481,7 @@ CORS_ORIGIN_WHITELIST = env.tuple("CORS_ORIGIN_WHITELIST", default=())
 
 # Fixed token with super user access
 
-FIXED_SUPER_ACCESS_TOKEN = env("FIXED_SUPER_ACCESS_TOKEN", default="")
+FIXED_SUPER_ACCESS_TOKEN = env("FIXED_SUPER_ACCESS_TOKEN")
 
 # ----------------------------------------------------------------------------------------
 # The list below excludes from the list the channels that go to the generic integrations channels
