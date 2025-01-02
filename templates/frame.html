@@ -144,9 +144,7 @@
           import '/out-tsc/temba-modules.js';
         </script>
       {% else %}
-        {% compress js %}
-          <script src="{% static '@nyaruka/temba-components/dist/temba-components.js' %}"></script>
-        {% endcompress %}
+        <script src="{% static '@nyaruka/temba-components/dist/temba-components.js' %}"></script>
       {% endif %}
       {% if user_org %}
         <temba-store {% if org_perms.globals.global_list %}globals="/api/v2/globals.json"{% endif %}
