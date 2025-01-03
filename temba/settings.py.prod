@@ -251,8 +251,6 @@ INSTALLED_APPS += (
     "gunicorn",
     "storages",
     "elasticapm.contrib.django",
-    # gRPC
-    "django_grpc_framework",
     # OIDC authentication
     "mozilla_django_oidc",
     "weni.auth",
