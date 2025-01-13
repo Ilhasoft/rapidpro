@@ -34,7 +34,6 @@ polib
 pyexcel
 pyexcel-xls
 pyexcel-xlsx
-python-magic
 xlsxlite
 
 ########################## misc ##########################
