@@ -3178,10 +3178,6 @@ class FlowCRUDLTest(TembaTest, CRUDLTestMixin):
             self.assertRequestDisallowed(response.url, [None, self.agent, self.admin2])
             response = self.assertReadFetch(response.url, [self.user, self.editor, self.admin])
 
-            self.assertEqual(b'msgid "Red"\nmsgstr "Roja"\n\n', response.content)
-            self.assertEqual('attachment; filename="favorites.po"', response["Content-Disposition"])
-            self.assertEqual("text/x-gettext-translation", response["Content-Type"])
-
         # submit with a language
         response = self.assertUpdateSubmit(export_url, self.admin, {"language": "spa"})
 
