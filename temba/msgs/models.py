@@ -1,16 +1,17 @@
+import itertools
 import logging
 import mimetypes
 import os
 import re
 from array import array
 from dataclasses import dataclass
+from enum import Enum
 from fnmatch import fnmatch
 from urllib.parse import unquote, urlparse
 
 import iso8601
 
 from django.conf import settings
-from django.contrib.auth.models import User
 from django.contrib.postgres.fields import ArrayField
 from django.core.files.storage import default_storage
 from django.db import models
@@ -22,11 +23,12 @@ from django.utils.translation import gettext_lazy as _
 from temba import mailroom
 from temba.channels.models import Channel, ChannelLog
 from temba.contacts.models import Contact, ContactGroup, ContactURN
-from temba.orgs.models import DependencyMixin, Export, ExportType, Org
+from temba.orgs.models import DependencyMixin, Export, ExportType, Org, User
 from temba.schedules.models import Schedule
-from temba.utils import chunk_list, languages, on_transaction_commit
+from temba.utils import languages, on_transaction_commit
 from temba.utils.export.models import MultiSheetExporter
-from temba.utils.models import JSONAsTextField, SquashableModel, TembaModel
+from temba.utils.models import JSONAsTextField, TembaModel
+from temba.utils.models.counts import BaseSquashableCount
 from temba.utils.s3 import public_file_storage
 from temba.utils.uuid import uuid4
 
@@ -86,7 +88,7 @@ class Media(models.Model):
         Returns the storage path for the given filename. Differs slightly from that used by the media endpoint because
         it preserves the original filename which courier still needs if there's no media record for an attachment URL.
         """
-        return f"{settings.STORAGE_ROOT_DIR}/{org.id}/media/{str(uuid)[0:4]}/{uuid}/{filename}"
+        return f"orgs/{org.id}/media/{str(uuid)[0:4]}/{uuid}/{filename}"
 
     @classmethod
     def clean_name(cls, filename: str, content_type: str) -> str:
@@ -184,12 +186,24 @@ class Broadcast(models.Model):
     messages sent from the same bundle together
     """
 
-    STATUS_QUEUED = "Q"
-    STATUS_SENT = "S"
+    STATUS_PENDING = "P"  # exists in the database
+    STATUS_QUEUED = "Q"  # batch tasks created, count_count set
+    STATUS_STARTED = "S"  # first batch task started
+    STATUS_COMPLETED = "C"  # last batch task completed
     STATUS_FAILED = "F"
-    STATUS_CHOICES = ((STATUS_QUEUED, "Queued"), (STATUS_SENT, "Sent"), (STATUS_FAILED, "Failed"))
+    STATUS_INTERRUPTED = "I"
+    STATUS_CHOICES = (
+        (STATUS_PENDING, "Pending"),
+        (STATUS_QUEUED, "Queued"),
+        (STATUS_STARTED, "Started"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_INTERRUPTED, "Interrupted"),
+    )
 
     org = models.ForeignKey(Org, on_delete=models.PROTECT, related_name="broadcasts")
+    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    contact_count = models.IntegerField(default=0, null=True)  # null until status is QUEUED
 
     # recipients of this broadcast
     groups = models.ManyToManyField(ContactGroup, related_name="addressed_broadcasts")
@@ -206,10 +220,9 @@ class Broadcast(models.Model):
     template = models.ForeignKey("templates.Template", null=True, on_delete=models.PROTECT)
     template_variables = ArrayField(models.TextField(), null=True)
 
-    status = models.CharField(max_length=1, choices=STATUS_CHOICES, default=STATUS_QUEUED)
-    created_by = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name="broadcast_creations")
+    created_by = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name="+")
     created_on = models.DateTimeField(default=timezone.now)
-    modified_by = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name="broadcast_modifications")
+    modified_by = models.ForeignKey(User, null=True, on_delete=models.PROTECT, related_name="+")
     modified_on = models.DateTimeField(default=timezone.now)
 
     # used for scheduled broadcasts which are never actually sent themselves but spawn child broadcasts which are
@@ -258,13 +271,6 @@ class Broadcast(models.Model):
         )
 
     @classmethod
-    def get_queued(cls, org):
-        """
-        Gets the queued broadcasts which will be prepended to the Outbox
-        """
-        return org.broadcasts.filter(status=cls.STATUS_QUEUED, schedule=None, is_active=True)
-
-    @classmethod
     def preview(cls, org, *, include: mailroom.Inclusions, exclude: mailroom.Exclusions) -> tuple[str, int]:
         """
         Requests a preview of the recipients of a broadcast created with the given inclusions/exclusions, returning a
@@ -301,6 +307,15 @@ class Broadcast(models.Model):
             return trans(self.translations[self.org.flow_languages[0]])
 
         return trans(self.translations[self.base_language])  # should always be a base language translation
+
+    def interrupt(self, user):
+        """
+        Interrupts this flow start
+        """
+
+        self.status = self.STATUS_INTERRUPTED
+        self.modified_by = user
+        self.save(update_fields=("status", "modified_by", "modified_on"))
 
     def delete(self, user, *, soft: bool):
         if soft:
@@ -358,12 +373,6 @@ class Broadcast(models.Model):
                 name="msgs_broadcasts_scheduled",
                 fields=["org", "-created_on"],
                 condition=Q(schedule__isnull=False, is_active=True),
-            ),
-            # used to fetch queued broadcasts for the Outbox
-            models.Index(
-                name="msgs_broadcasts_queued",
-                fields=["org", "-created_on"],
-                condition=Q(schedule__isnull=True, status="Q", is_active=True),
             ),
         ]
 
@@ -577,7 +586,7 @@ class Msg(models.Model):
         return Attachment.parse_all(self.attachments)
 
     def get_logs(self) -> list:
-        return ChannelLog.get_logs(self.channel, self.log_uuids or [])
+        return ChannelLog.get_by_uuid(self.channel, self.log_uuids or [])
 
     def handle(self):  # pragma: no cover
         """
@@ -606,7 +615,7 @@ class Msg(models.Model):
 
         # update modified on in small batches to avoid long table lock, and having too many non-unique values for
         # modified_on which is the primary ordering for the API
-        for batch in chunk_list(msg_ids, 100):
+        for batch in itertools.batched(msg_ids, 100):
             Msg.objects.filter(pk__in=batch).update(visibility=cls.VISIBILITY_ARCHIVED, modified_on=timezone.now())
 
     def restore(self):
@@ -698,6 +707,12 @@ class Msg(models.Model):
                 fields=["next_attempt", "created_on", "id"],
                 condition=Q(direction="O", status__in=("I", "E"), next_attempt__isnull=False),
             ),
+            # used for finding old Android messages to fail
+            models.Index(
+                name="msgs_outgoing_android_to_fail",
+                fields=["created_on"],
+                condition=Q(direction="O", is_android=True, status__in=("I", "Q", "E")),
+            ),
             # used by courier to lookup messages by external id
             models.Index(
                 name="msgs_by_external_id",
@@ -752,7 +767,7 @@ class Msg(models.Model):
         ]
 
 
-class BroadcastMsgCount(SquashableModel):
+class BroadcastMsgCount(BaseSquashableCount):
     """
     Maintains count of how many msgs are tied to a broadcast
     """
@@ -760,34 +775,114 @@ class BroadcastMsgCount(SquashableModel):
     squash_over = ("broadcast_id",)
 
     broadcast = models.ForeignKey(Broadcast, on_delete=models.PROTECT, related_name="counts", db_index=True)
-    count = models.IntegerField(default=0)
-
-    @classmethod
-    def get_squash_query(cls, distinct_set):
-        sql = """
-        WITH deleted as (
-            DELETE FROM %(table)s WHERE "broadcast_id" = %%s RETURNING "count"
-        )
-        INSERT INTO %(table)s("broadcast_id", "count", "is_squashed")
-        VALUES (%%s, GREATEST(0, (SELECT SUM("count") FROM deleted)), TRUE);
-        """ % {
-            "table": cls._meta.db_table
-        }
-
-        return sql, (distinct_set.broadcast_id,) * 2
 
     @classmethod
     def get_count(cls, broadcast):
-        return cls.sum(broadcast.counts.all())
+        return broadcast.counts.all().sum()
+
+    @classmethod
+    def bulk_annotate(cls, broadcasts):
+        counts = (
+            cls.objects.filter(broadcast_id__in=[b.id for b in broadcasts])
+            .values("broadcast_id")
+            .order_by("broadcast_id")
+            .annotate(count=Sum("count"))
+        )
+        counts_by_bcast = {c["broadcast_id"]: c["count"] for c in counts}
+
+        for bcast in broadcasts:
+            bcast.msg_count = counts_by_bcast.get(bcast.id, 0)
+
+
+class MsgFolder(Enum):
+    """
+    A folder of messages owned by an org.
+    """
+
+    INBOX = (
+        "I",
+        dict(
+            direction=Msg.DIRECTION_IN,
+            visibility=Msg.VISIBILITY_VISIBLE,
+            status=Msg.STATUS_HANDLED,
+            flow__isnull=True,
+            msg_type=Msg.TYPE_TEXT,
+        ),
+        dict(direction="in", visibility="visible", status="handled", flow__isnull=True, type__ne="voice"),
+    )
+    HANDLED = (
+        "W",
+        dict(
+            direction=Msg.DIRECTION_IN,
+            visibility=Msg.VISIBILITY_VISIBLE,
+            status=Msg.STATUS_HANDLED,
+            flow__isnull=False,
+            msg_type=Msg.TYPE_TEXT,
+        ),
+        dict(direction="in", visibility="visible", status="handled", flow__isnull=False, type__ne="voice"),
+    )
+    ARCHIVED = (
+        "A",
+        dict(
+            direction=Msg.DIRECTION_IN,
+            visibility=Msg.VISIBILITY_ARCHIVED,
+            status=Msg.STATUS_HANDLED,
+            msg_type=Msg.TYPE_TEXT,
+        ),
+        dict(direction="in", visibility="archived", status="handled", type__ne="voice"),
+    )
+    OUTBOX = (
+        "O",
+        dict(
+            direction=Msg.DIRECTION_OUT,
+            visibility=Msg.VISIBILITY_VISIBLE,
+            status__in=(Msg.STATUS_INITIALIZING, Msg.STATUS_QUEUED, Msg.STATUS_ERRORED),
+        ),
+        dict(direction="out", visibility="visible", status__in=("initializing", "queued", "errored")),
+    )
+    SENT = (
+        "S",
+        dict(
+            direction=Msg.DIRECTION_OUT,
+            visibility=Msg.VISIBILITY_VISIBLE,
+            status__in=(Msg.STATUS_WIRED, Msg.STATUS_SENT, Msg.STATUS_DELIVERED, Msg.STATUS_READ),
+        ),
+        dict(direction="out", visibility="visible", status__in=("wired", "sent", "delivered", "read")),
+    )
+    FAILED = (
+        "X",
+        dict(direction=Msg.DIRECTION_OUT, visibility=Msg.VISIBILITY_VISIBLE, status=Msg.STATUS_FAILED),
+        dict(direction="out", visibility="visible", status="failed"),
+    )
+
+    def __init__(self, code, query: dict, archive_query: dict = None):
+        self.code = code
+        self.query = query
+        self.archive_query = archive_query
+
+    def get_queryset(self, org):
+        # we don't use org.msgs here because it causes problems when the API is using different db connections
+        return Msg.objects.filter(org=org, **self.query)
+
+    def get_archive_query(self) -> dict:
+        return self.archive_query.copy()
+
+    @classmethod
+    def from_code(cls, code):
+        return next(f for f in cls if f.code == code)
 
 
 class SystemLabel:
-    TYPE_INBOX = "I"
-    TYPE_FLOWS = "W"
-    TYPE_ARCHIVED = "A"
-    TYPE_OUTBOX = "O"
-    TYPE_SENT = "S"
-    TYPE_FAILED = "X"
+    """
+    TODO replace with MsgFolder once we figure out what to do with calls and broadcasts.
+    """
+
+    TYPE_INBOX = MsgFolder.INBOX.code
+    TYPE_FLOWS = MsgFolder.HANDLED.code
+    TYPE_ARCHIVED = MsgFolder.ARCHIVED.code
+    TYPE_OUTBOX = MsgFolder.OUTBOX.code
+    TYPE_SENT = MsgFolder.SENT.code
+    TYPE_FAILED = MsgFolder.FAILED.code
     TYPE_SCHEDULED = "E"
     TYPE_CALLS = "C"
 
@@ -804,7 +899,8 @@ class SystemLabel:
 
     @classmethod
     def get_counts(cls, org):
-        return SystemLabelCount.get_totals(org)
+        counts = org.counts.prefix("msgs:folder:").scope_totals()
+        return {lb: counts.get(f"msgs:folder:{lb}", 0) for lb, n in cls.TYPE_CHOICES}
 
     @classmethod
     def get_queryset(cls, org, label_type):
@@ -813,107 +909,29 @@ class SystemLabel:
         trigger used to maintain the label counts.
         """
 
-        from temba.ivr.models import Call
-
         assert label_type in [c[0] for c in cls.TYPE_CHOICES]
 
-        if label_type == cls.TYPE_INBOX:
-            qs = Msg.objects.filter(
-                direction=Msg.DIRECTION_IN,
-                visibility=Msg.VISIBILITY_VISIBLE,
-                status=Msg.STATUS_HANDLED,
-                flow__isnull=True,
-                msg_type=Msg.TYPE_TEXT,
-            )
-        elif label_type == cls.TYPE_FLOWS:
-            qs = Msg.objects.filter(
-                direction=Msg.DIRECTION_IN,
-                visibility=Msg.VISIBILITY_VISIBLE,
-                status=Msg.STATUS_HANDLED,
-                flow__isnull=False,
-                msg_type=Msg.TYPE_TEXT,
-            )
-        elif label_type == cls.TYPE_ARCHIVED:
-            qs = Msg.objects.filter(
-                direction=Msg.DIRECTION_IN,
-                visibility=Msg.VISIBILITY_ARCHIVED,
-                status=Msg.STATUS_HANDLED,
-                msg_type=Msg.TYPE_TEXT,
-            )
-        elif label_type == cls.TYPE_OUTBOX:
-            qs = Msg.objects.filter(
-                direction=Msg.DIRECTION_OUT,
-                visibility=Msg.VISIBILITY_VISIBLE,
-                status__in=(Msg.STATUS_INITIALIZING, Msg.STATUS_QUEUED, Msg.STATUS_ERRORED),
-            )
-        elif label_type == cls.TYPE_SENT:
-            qs = Msg.objects.filter(
-                direction=Msg.DIRECTION_OUT,
-                visibility=Msg.VISIBILITY_VISIBLE,
-                status__in=(Msg.STATUS_WIRED, Msg.STATUS_SENT, Msg.STATUS_DELIVERED, Msg.STATUS_READ),
-            )
-        elif label_type == cls.TYPE_FAILED:
-            qs = Msg.objects.filter(
-                direction=Msg.DIRECTION_OUT, visibility=Msg.VISIBILITY_VISIBLE, status=Msg.STATUS_FAILED
-            )
-        elif label_type == cls.TYPE_SCHEDULED:
-            qs = Broadcast.objects.filter(is_active=True).exclude(schedule=None)
+        if label_type == cls.TYPE_SCHEDULED:
+            return org.broadcasts.filter(is_active=True).exclude(schedule=None)
         elif label_type == cls.TYPE_CALLS:
-            qs = Call.objects.all()
+            return org.calls.all()
 
-        return qs.filter(org=org)
+        return MsgFolder.from_code(label_type).get_queryset(org)
 
     @classmethod
     def get_archive_query(cls, label_type: str) -> dict:
-        if label_type == cls.TYPE_INBOX:
-            return dict(direction="in", visibility="visible", status="handled", flow__isnull=True, type__ne="voice")
-        elif label_type == cls.TYPE_FLOWS:
-            return dict(direction="in", visibility="visible", status="handled", flow__isnull=False, type__ne="voice")
-        elif label_type == cls.TYPE_ARCHIVED:
-            return dict(direction="in", visibility="archived", status="handled", type__ne="voice")
-        elif label_type == cls.TYPE_OUTBOX:
-            return dict(direction="out", visibility="visible", status__in=("initializing", "queued", "errored"))
-        elif label_type == cls.TYPE_SENT:
-            return dict(direction="out", visibility="visible", status__in=("wired", "sent", "delivered", "read"))
-        elif label_type == cls.TYPE_FAILED:
-            return dict(direction="out", visibility="visible", status="failed")
+        return MsgFolder.from_code(label_type).get_archive_query()
 
 
-class SystemLabelCount(SquashableModel):
+class SystemLabelCount(BaseSquashableCount):
     """
-    Counts of messages/broadcasts/calls maintained by database level triggers
+    TODO drop
     """
 
     squash_over = ("org_id", "label_type")
 
     org = models.ForeignKey(Org, on_delete=models.PROTECT, related_name="system_labels")
     label_type = models.CharField(max_length=1, choices=SystemLabel.TYPE_CHOICES)
-    count = models.IntegerField(default=0)
-
-    @classmethod
-    def get_squash_query(cls, distinct_set):
-        sql = """
-        WITH deleted as (
-            DELETE FROM %(table)s WHERE "org_id" = %%s AND "label_type" = %%s RETURNING "count"
-        )
-        INSERT INTO %(table)s("org_id", "label_type", "count", "is_squashed")
-        VALUES (%%s, %%s, GREATEST(0, (SELECT SUM("count") FROM deleted)), TRUE);
-        """ % {
-            "table": cls._meta.db_table
-        }
-
-        return sql, (distinct_set.org_id, distinct_set.label_type) * 2
-
-    @classmethod
-    def get_totals(cls, org):
-        """
-        Gets all system label counts by type for the given org
-        """
-        counts = cls.objects.filter(org=org).values_list("label_type").annotate(count_sum=Sum("count"))
-        counts_by_type = {c[0]: c[1] for c in counts}
-
-        # for convenience, include all label types
-        return {lb: counts_by_type.get(lb, 0) for lb, n in SystemLabel.TYPE_CHOICES}
 
     class Meta:
         indexes = [models.Index(fields=("org", "label_type", "is_squashed"))]
@@ -999,7 +1017,7 @@ class Label(TembaModel, DependencyMixin):
         constraints = [models.UniqueConstraint("org", Lower("name"), name="unique_label_names")]
 
 
-class LabelCount(SquashableModel):
+class LabelCount(BaseSquashableCount):
     """
     Counts of user labels maintained by database level triggers
     """
@@ -1008,21 +1026,6 @@ class LabelCount(SquashableModel):
 
     label = models.ForeignKey(Label, on_delete=models.PROTECT, related_name="counts")
     is_archived = models.BooleanField(default=False)
-    count = models.IntegerField(default=0)
-
-    @classmethod
-    def get_squash_query(cls, distinct_set):
-        sql = """
-            WITH deleted as (
-                DELETE FROM %(table)s WHERE "label_id" = %%s AND "is_archived" = %%s RETURNING "count"
-            )
-            INSERT INTO %(table)s("label_id", "is_archived", "count", "is_squashed")
-            VALUES (%%s, %%s, GREATEST(0, (SELECT SUM("count") FROM deleted)), TRUE);
-            """ % {
-            "table": cls._meta.db_table
-        }
-
-        return sql, (distinct_set.label_id, distinct_set.is_archived) * 2
 
     @classmethod
     def get_totals(cls, labels):
@@ -1164,14 +1167,14 @@ class MessageExport(ExportType):
         if system_label:
             where = SystemLabel.get_archive_query(system_label)
         elif label:
-            where = {"visibility": "visible", "__raw__": f"'{label.uuid}' IN s.labels[*].uuid[*]"}
+            where = {"visibility": "visible", "__raw__": f"'{label.uuid}' IN s.labels[*].uuid"}
         else:
             where = {"visibility": "visible"}
 
         records = Archive.iter_all_records(export.org, Archive.TYPE_MSG, start_date, end_date, where=where)
         last_created_on = None
 
-        for record_batch in chunk_list(records, 1000):
+        for record_batch in itertools.batched(records, 1000):
             matching = []
             for record in record_batch:
                 created_on = iso8601.parse_date(record["created_on"])

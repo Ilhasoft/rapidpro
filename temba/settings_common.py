@@ -27,8 +27,16 @@ if TESTING:
     PASSWORD_HASHERS = ("django.contrib.auth.hashers.MD5PasswordHasher",)
     DEBUG = False
 
-TEST_RUNNER = "temba.tests.runner.TembaTestRunner"
-TEST_EXCLUDE = ("smartmin",)
+if os.getenv("REMOTE_CONTAINERS") == "true":
+    _db_host = "postgres"
+    _redis_host = "redis"
+    _minio_host = "minio"
+    _dynamo_host = "dynamo"
+else:
+    _db_host = "localhost"
+    _redis_host = "localhost"
+    _minio_host = "localhost"
+    _dynamo_host = "localhost"
 
 # -----------------------------------------------------------------------------------
 # Email
@@ -48,31 +56,54 @@ EMAIL_TIMEOUT = 10
 FLOW_FROM_EMAIL = "no-reply@temba.io"
 
 # -----------------------------------------------------------------------------------
+# AWS
+# -----------------------------------------------------------------------------------
+
+AWS_ACCESS_KEY_ID = "root"
+AWS_SECRET_ACCESS_KEY = "tembatemba"
+AWS_REGION = "us-east-1"
+
+DYNAMO_ENDPOINT_URL = f"http://{_dynamo_host}:6000"
+DYNAMO_TABLE_PREFIX = "Test" if TESTING else "Temba"
+
+# -----------------------------------------------------------------------------------
 # Storage
 # -----------------------------------------------------------------------------------
 
+_bucket_prefix = "test" if TESTING else "temba"
+
 STORAGES = {
     # default storage for things like exports, imports
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    # wherever rp-archiver writes archive files (must be S3 compatible)
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {"bucket_name": f"{_bucket_prefix}-default"},
+    },
+    # wherever rp-archiver writes archive files
     "archives": {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
-        "OPTIONS": {"bucket_name": "temba-archives"},
+        "OPTIONS": {"bucket_name": f"{_bucket_prefix}-archives"},
     },
-    # wherever courier and mailroom are writing logs
-    "logs": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
     # media file uploads that need to be publicly accessible
-    "public": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "public": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": f"{_bucket_prefix}-default",
+            "signature_version": "s3v4",
+            "default_acl": "public-read",
+            "querystring_auth": False,
+        },
+    },
     # standard Django static files storage
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 }
 
-STORAGE_URL = None  # may be an absolute URL to /media (like http://localhost:8000/media) or AWS S3
-STORAGE_ROOT_DIR = "test_orgs" if TESTING else "orgs"
+# settings used by django-storages (defaults to local Minio server)
+AWS_S3_REGION_NAME = AWS_REGION
+AWS_S3_ENDPOINT_URL = f"http://{_minio_host}:9000"
+AWS_S3_ADDRESSING_STYLE = "path"
+AWS_S3_FILE_OVERWRITE = False
 
-# settings used by django-storages
-AWS_ACCESS_KEY_ID = "aws_access_key_id"
-AWS_SECRET_ACCESS_KEY = "aws_secret_access_key"
+STORAGE_URL = f"{AWS_S3_ENDPOINT_URL}/{_bucket_prefix}-default"
 
 # -----------------------------------------------------------------------------------
 # Localization
@@ -154,7 +185,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "temba.context_processors.branding",
                 "temba.context_processors.config",
-                "temba.orgs.context_processors.user_group_perms_processor",
+                "temba.orgs.views.context_processors.org_perms_processor",
             ],
             "loaders": [
                 "django.template.loaders.filesystem.Loader",
@@ -163,9 +194,6 @@ TEMPLATES = [
         },
     }
 ]
-
-if TESTING:
-    TEMPLATES[0]["OPTIONS"]["context_processors"] += ("temba.tests.add_testing_flag_to_context",)
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
@@ -245,6 +273,7 @@ INSTALLED_APPS = (
     "temba.locations",
     "temba.airtime",
     "temba.sql",
+    "temba.staff",
 )
 
 # don't let smartmin auto create django messages for create and update submissions
@@ -287,6 +316,12 @@ BRAND = {
 
 FEATURES = {"locations"}
 
+# The default checked options for flow starts and broadcasts
+DEFAULT_EXCLUSIONS = {"in_a_flow": True}
+
+# Estimated send time limits before warning or blocking, zero is no limit
+SEND_HOURS_WARNING = 0
+SEND_HOURS_BLOCK = 0
 
 # -----------------------------------------------------------------------------------
 # Permissions
@@ -302,36 +337,27 @@ PERMISSIONS = {
     ),
     "api.apitoken": ("explorer",),
     "archives.archive": ("run", "message"),
-    "campaigns.campaign": ("archived", "archive", "activate", "menu"),
+    "campaigns.campaign": ("archive", "activate", "menu"),
     "channels.channel": ("chart", "claim", "configuration", "errors", "facebook_whitelist"),
     "channels.channellog": ("connection",),
     "classifiers.classifier": ("connect", "sync"),
-    "contacts.contact": (
-        "export",
-        "history",
-        "interrupt",
-        "menu",
-        "omnibox",
-        "open_ticket",
-        "start",
-    ),
+    "contacts.contact": ("export", "history", "interrupt", "menu", "omnibox", "open_ticket", "start"),
     "contacts.contactfield": ("update_priority",),
     "contacts.contactgroup": ("menu",),
     "contacts.contactimport": ("preview",),
     "flows.flow": ("assets", "copy", "editor", "export", "menu", "results", "start"),
+    "flows.flowstart": ("interrupt", "status"),
     "flows.flowsession": ("json",),
     "globals.global": ("unused",),
     "locations.adminboundary": ("alias", "boundaries", "geometry"),
-    "msgs.broadcast": ("scheduled", "scheduled_read", "scheduled_delete"),
+    "msgs.broadcast": ("scheduled", "scheduled_delete"),
     "msgs.msg": ("archive", "export", "label", "menu"),
     "orgs.export": ("download",),
     "orgs.org": (
         "country",
         "create",
         "dashboard",
-        "delete_child",
         "download",
-        "edit_sub_org",
         "edit",
         "export",
         "flow_smtp",
@@ -339,8 +365,6 @@ PERMISSIONS = {
         "join_accept",
         "join",
         "languages",
-        "manage_accounts_sub_org",
-        "manage_accounts",
         "manage_integrations",
         "manage",
         "menu",
@@ -349,13 +373,11 @@ PERMISSIONS = {
         "service",
         "signup",
         "spa",
-        "sub_orgs",
         "trial",
         "twilio_account",
         "twilio_connect",
         "workspace",
     ),
-    "orgs.user": ("token",),
     "request_logs.httplog": ("webhooks", "classifier"),
     "tickets.ticket": ("assign", "assignee", "menu", "note", "export_stats", "export"),
     "triggers.trigger": ("archived", "type", "menu"),
@@ -374,6 +396,7 @@ GROUP_PERMISSIONS = {
         "airtime.airtimetransfer_list",
         "airtime.airtimetransfer_read",
         "api.apitoken_explorer",
+        "api.apitoken_list",
         "api.resthook_list",
         "api.resthooksubscriber_create",
         "api.resthooksubscriber_delete",
@@ -443,29 +466,29 @@ GROUP_PERMISSIONS = {
         "orgs.org_country",
         "orgs.org_create",
         "orgs.org_dashboard",
-        "orgs.org_delete_child",
+        "orgs.org_delete",
         "orgs.org_download",
-        "orgs.org_edit_sub_org",
         "orgs.org_edit",
         "orgs.org_export",
         "orgs.org_flow_smtp",
         "orgs.org_languages",
-        "orgs.org_manage_accounts_sub_org",
-        "orgs.org_manage_accounts",
+        "orgs.org_list",
         "orgs.org_manage_integrations",
         "orgs.org_menu",
         "orgs.org_prometheus",
         "orgs.org_read",
         "orgs.org_resthooks",
-        "orgs.org_sub_orgs",
+        "orgs.org_update",
         "orgs.org_workspace",
         "orgs.orgimport.*",
         "orgs.user_list",
-        "orgs.user_token",
+        "orgs.user_update",
         "request_logs.httplog_list",
         "request_logs.httplog_read",
         "request_logs.httplog_webhooks",
         "templates.template.*",
+        "tickets.shortcut.*",
+        "tickets.team.*",
         "tickets.ticket.*",
         "tickets.topic.*",
         "triggers.trigger.*",
@@ -474,6 +497,7 @@ GROUP_PERMISSIONS = {
         "airtime.airtimetransfer_list",
         "airtime.airtimetransfer_read",
         "api.apitoken_explorer",
+        "api.apitoken_list",
         "api.resthook_list",
         "api.resthooksubscriber_create",
         "api.resthooksubscriber_delete",
@@ -542,17 +566,18 @@ GROUP_PERMISSIONS = {
         "orgs.org_resthooks",
         "orgs.org_workspace",
         "orgs.orgimport.*",
-        "orgs.user_list",
-        "orgs.user_token",
         "request_logs.httplog_webhooks",
         "templates.template_list",
         "templates.template_read",
+        "tickets.shortcut_create",
+        "tickets.shortcut_delete",
+        "tickets.shortcut_list",
+        "tickets.shortcut_update",
         "tickets.ticket.*",
         "tickets.topic.*",
         "triggers.trigger.*",
     ),
     "Viewers": (
-        "campaigns.campaign_archived",
         "campaigns.campaign_list",
         "campaigns.campaign_menu",
         "campaigns.campaign_read",
@@ -591,7 +616,6 @@ GROUP_PERMISSIONS = {
         "locations.adminboundary_list",
         "msgs.broadcast_list",
         "msgs.broadcast_scheduled",
-        "msgs.broadcast_scheduled_read",
         "msgs.label_list",
         "msgs.label_read",
         "msgs.msg_export",
@@ -605,7 +629,6 @@ GROUP_PERMISSIONS = {
         "orgs.org_menu",
         "orgs.org_read",
         "orgs.org_workspace",
-        "orgs.user_list",
         "templates.template_list",
         "templates.template_read",
         "tickets.ticket_export",
@@ -633,6 +656,8 @@ GROUP_PERMISSIONS = {
 
 # extra permissions that only apply to API requests (wildcard notation not supported here)
 API_PERMISSIONS = {
+    "Editors": ("orgs.user_list",),
+    "Viewers": ("orgs.user_list",),
     "Agents": (
         "contacts.contact_create",
         "contacts.contact_list",
@@ -644,17 +669,16 @@ API_PERMISSIONS = {
         "msgs.msg_create",
         "orgs.org_read",
         "orgs.user_list",
-    )
+        "tickets.shortcut_list",
+    ),
 }
 
 # -----------------------------------------------------------------------------------
-# Login / Logout
+# Authentication
 # -----------------------------------------------------------------------------------
 
 LOGIN_URL = "/users/login/"
-LOGOUT_URL = "/users/logout/"
 LOGIN_REDIRECT_URL = "/org/choose/"
-LOGOUT_REDIRECT_URL = "/"
 
 AUTHENTICATION_BACKENDS = ("temba.orgs.backend.AuthenticationBackend",)
 
@@ -726,16 +750,17 @@ CELERY_BEAT_SCHEDULE = {
     "check-android-channels": {"task": "check_android_channels", "schedule": timedelta(seconds=300)},
     "delete-released-orgs": {"task": "delete_released_orgs", "schedule": crontab(hour=4, minute=0)},
     "expire-invitations": {"task": "expire_invitations", "schedule": crontab(hour=0, minute=10)},
-    "fail-old-messages": {"task": "fail_old_messages", "schedule": crontab(hour=0, minute=0)},
+    "fail-old-android-messages": {"task": "fail_old_android_messages", "schedule": crontab(hour=0, minute=0)},
     "interrupt-flow-sessions": {"task": "interrupt_flow_sessions", "schedule": crontab(hour=23, minute=30)},
     "refresh-whatsapp-tokens": {"task": "refresh_whatsapp_tokens", "schedule": crontab(hour=6, minute=0)},
     "refresh-templates": {"task": "refresh_templates", "schedule": timedelta(seconds=900)},
     "send-notification-emails": {"task": "send_notification_emails", "schedule": timedelta(seconds=60)},
+    "squash-activity-counts": {"task": "squash_activity_counts", "schedule": timedelta(seconds=30)},
     "squash-channel-counts": {"task": "squash_channel_counts", "schedule": timedelta(seconds=60)},
     "squash-group-counts": {"task": "squash_group_counts", "schedule": timedelta(seconds=60)},
     "squash-flow-counts": {"task": "squash_flow_counts", "schedule": timedelta(seconds=60)},
+    "squash-item-counts": {"task": "squash_item_counts", "schedule": timedelta(seconds=30)},
     "squash-msg-counts": {"task": "squash_msg_counts", "schedule": timedelta(seconds=60)},
-    "squash-notification-counts": {"task": "squash_notification_counts", "schedule": timedelta(seconds=60)},
     "squash-ticket-counts": {"task": "squash_ticket_counts", "schedule": timedelta(seconds=60)},
     "sync-classifier-intents": {"task": "sync_classifier_intents", "schedule": timedelta(seconds=300)},
     "track-org-channel-counts": {"task": "track_org_channel_counts", "schedule": crontab(hour=4, minute=0)},
@@ -751,6 +776,7 @@ CELERY_BEAT_SCHEDULE = {
     "trim-http-logs": {"task": "trim_http_logs", "schedule": crontab(hour=2, minute=0)},
     "trim-notifications": {"task": "trim_notifications", "schedule": crontab(hour=2, minute=0)},
     "trim-webhook-events": {"task": "trim_webhook_events", "schedule": crontab(hour=3, minute=0)},
+    "update-tokens-used": {"task": "update_tokens_used", "schedule": timedelta(seconds=30)},
 }
 
 # -----------------------------------------------------------------------------------
@@ -862,7 +888,6 @@ CHANNEL_TYPES = [
     "temba.channels.types.twilio_messaging_service.TwilioMessagingServiceType",
     "temba.channels.types.twilio_whatsapp.TwilioWhatsappType",
     "temba.channels.types.twilio.TwilioType",
-    "temba.channels.types.twitter.TwitterType",
     "temba.channels.types.verboice.VerboiceType",
     "temba.channels.types.viber_public.ViberPublicType",
     "temba.channels.types.vk.VKType",
@@ -877,6 +902,7 @@ CHANNEL_TYPES = [
     "temba.channels.types.android.AndroidType",
     "temba.channels.types.weniwebchat.WeniWebChatType",
     "temba.channels.types.teams.TeamsType",
+    "temba.channels.types.test.TestType",
 ]
 
 ANALYTICS_TYPES = [
@@ -932,12 +958,12 @@ ORG_LIMIT_DEFAULTS = {
     "groups": 250,
     "labels": 250,
     "teams": 50,
-    "topics": 250,
+    "topics": 50,
 }
 
 RETENTION_PERIODS = {
     "channelevent": timedelta(days=90),
-    "channellog": timedelta(days=14),
+    "channellog": timedelta(days=7),
     "export": timedelta(days=90),
     "eventfire": timedelta(days=90),
     "flowsession": timedelta(days=7),
@@ -950,9 +976,6 @@ RETENTION_PERIODS = {
 # -----------------------------------------------------------------------------------
 # 3rd Party Integrations
 # -----------------------------------------------------------------------------------
-
-TWITTER_API_KEY = os.environ.get("TWITTER_API_KEY", "MISSING_TWITTER_API_KEY")
-TWITTER_API_SECRET = os.environ.get("TWITTER_API_SECRET", "MISSING_TWITTER_API_SECRET")
 
 MAILGUN_API_KEY = os.environ.get("MAILGUN_API_KEY", "")
 
