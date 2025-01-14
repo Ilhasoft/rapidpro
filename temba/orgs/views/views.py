@@ -2325,7 +2325,7 @@ class InvitationCRUDL(SmartCRUDL):
     model = Invitation
     actions = ("create",)
 
-    class Create(SpaMixin, ModalMixin, OrgPermsMixin, SmartCreateView):
+    class Create(SpaMixin, NoNavMixin, OrgPermsMixin, SmartCreateView):
         class Form(forms.ModelForm):
             ROLE_CHOICES = [(r.code, r.display) for r in (OrgRole.AGENT, OrgRole.EDITOR, OrgRole.ADMINISTRATOR)]
 
