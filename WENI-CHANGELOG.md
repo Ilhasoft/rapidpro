@@ -1,3 +1,15 @@
+1.7.31-rapidpro-9.2.5
+----------
+* Update RapidPro with version 9.2.5
+
+1.7.31-rapidpro-9.2.0
+----------
+* Update RapidPro with version 9.2.0
+
+1.7.31-rapidpro-9.1.198
+----------
+* Update RapidPro with version 9.1.198
+
 1.7.31-rapidpro-9.0.0
 ----------
 * Change media upload to be static
