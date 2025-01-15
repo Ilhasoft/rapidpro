@@ -38,7 +38,6 @@ from django.views.generic import View
 
 from temba.api.models import Resthook
 from temba.campaigns.models import Campaign
-from temba.contacts.models import ContactField, ContactGroup
 from temba.flows.models import Flow
 from temba.formax import FormaxMixin, FormaxSectionMixin
 from temba.notifications.mixins import NotificationTargetMixin

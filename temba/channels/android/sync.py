@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, timezone as tzone
 
 from temba.msgs.models import Msg
