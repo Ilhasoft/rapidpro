@@ -1173,11 +1173,6 @@ class OrgCRUDL(SmartCRUDL):
                 if self.has_org_perm("orgs.orgimport_create"):
                     menu.append(self.create_menu_item(name=_("Import"), icon="import", href="orgs.orgimport_create"))
 
-                if self.has_org_perm("notifications.incident_list"):
-                    menu.append(
-                        self.create_menu_item(name=_("Incidents"), icon="incidents", href="notifications.incident_list")
-                    )
-
                 if self.has_org_perm("channels.channel_read"):
                     from temba.channels.views import get_channel_read_url
 
@@ -2318,77 +2313,6 @@ class InvitationCRUDL(SmartCRUDL):
         require_feature = Org.FEATURE_USERS
         cancel_url = "@orgs.invitation_list"
         redirect_url = "@orgs.invitation_list"
-
-
-class InvitationCRUDL(SmartCRUDL):
-    model = Invitation
-    actions = ("create",)
-
-    class Create(SpaMixin, NoNavMixin, OrgPermsMixin, SmartCreateView):
-        class Form(forms.ModelForm):
-            ROLE_CHOICES = [(r.code, r.display) for r in (OrgRole.AGENT, OrgRole.EDITOR, OrgRole.ADMINISTRATOR)]
-
-            email = forms.EmailField(widget=InputWidget(attrs={"widget_only": True, "placeholder": _("Email Address")}))
-            role = forms.ChoiceField(
-                choices=ROLE_CHOICES, initial=OrgRole.EDITOR.code, label=_("Role"), widget=SelectWidget()
-            )
-
-            def __init__(self, org, *args, **kwargs):
-                self.org = org
-
-                super().__init__(*args, **kwargs)
-
-            def clean_email(self):
-                email = self.cleaned_data["email"]
-
-                if self.org.users.filter(email__iexact=email).exists():
-                    raise ValidationError(_("User is already a member of this workspace."))
-
-                if self.org.invitations.filter(email__iexact=email, is_active=True).exists():
-                    raise ValidationError(_("User has already been invited to this workspace."))
-
-                return email
-
-            class Meta:
-                model = Invitation
-                fields = ("email", "role")
-
-        form_class = Form
-        title = ""
-        submit_button_name = _("Send")
-        success_url = "@orgs.org_manage_accounts"
-
-        def get_dest_org(self):
-            org_id = self.request.GET.get("org")
-            if org_id:
-                return get_object_or_404(self.request.org.children.filter(id=org_id))
-
-            return self.request.org
-
-        def get_form_kwargs(self):
-            kwargs = super().get_form_kwargs()
-            kwargs["org"] = self.get_dest_org()
-            return kwargs
-
-        def get_context_data(self, **kwargs):
-            context = super().get_context_data(**kwargs)
-            context["validity_days"] = settings.INVITATION_VALIDITY.days
-            return context
-
-        def pre_save(self, obj):
-            org = self.get_dest_org()
-
-            assert Org.FEATURE_USERS in org.features
-
-            obj.org = org
-            obj.user_group = self.form.cleaned_data["role"]
-
-            return super().pre_save(obj)
-
-        def post_save(self, obj):
-            obj.send()
-
-            return super().post_save(obj)
 
 
 class OrgImportCRUDL(SmartCRUDL):

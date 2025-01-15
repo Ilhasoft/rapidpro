@@ -1,6 +1,5 @@
 import cProfile
 import json
-import logging
 import pstats
 import traceback
 from io import StringIO
@@ -11,10 +10,6 @@ from django.http import HttpResponseForbidden
 from django.utils import timezone, translation
 
 from temba.orgs.models import Org, User
-
-from .context_processors_weni import use_weni_layout
-
-logger = logging.getLogger(__name__)
 
 
 class ExceptionMiddleware:
@@ -204,16 +199,3 @@ class ProfilerMiddleware:  # pragma: no cover
             self.profiler = cProfile.Profile()
             args = (request,) + callback_args
             return self.profiler.runcall(callback, *args, **callback_kwargs)
-
-
-class RedirectMiddleware:
-    def __init__(self, get_response=None):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        if hasattr(settings, "WENI_DOMAINS"):
-            if use_weni_layout(request)["use_weni_layout"]:
-                return self.get_response(request)
-        if not request.path.startswith("/redirect") and not request.path.startswith("/api"):
-            return HttpResponseRedirect(reverse("weni.redirect"))
-        return self.get_response(request)
