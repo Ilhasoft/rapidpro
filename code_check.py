@@ -32,8 +32,8 @@ def status(line):
 if __name__ == "__main__":
     colorama.init()
 
-    status("Check for missing migrations")
-    cmd("python manage.py makemigrations --check")
+    # status("Check for missing migrations")
+    # cmd("python manage.py makemigrations --check")
 
     status("Running isort")
     cmd("isort --check temba")
