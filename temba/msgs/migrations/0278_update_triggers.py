@@ -286,6 +286,7 @@ $$ LANGUAGE plpgsql;
 class Migration(migrations.Migration):
 
     dependencies = [
+        ("flows", "0340_update_triggers"),
         ("msgs", "0277_alter_broadcastmsgcount_count_alter_labelcount_count_and_more"),
     ]
 
