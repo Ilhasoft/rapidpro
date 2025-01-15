@@ -2,8 +2,8 @@ from django.conf import settings
 from django.conf.urls import include
 from django.conf.urls.static import static
 from django.urls import re_path
-from django.views.i18n import JavaScriptCatalog
 from django.views.generic import RedirectView
+from django.views.i18n import JavaScriptCatalog
 
 # javascript translation packages
 js_info_dict = {"packages": ()}  # this is empty due to the fact that all translation are in one folder
