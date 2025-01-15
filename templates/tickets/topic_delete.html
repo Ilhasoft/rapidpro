@@ -1,0 +1,17 @@
+{% extends "includes/modax.html" %}
+{% load i18n %}
+
+{% block fields %}
+  {% if has_tickets %}
+    {% blocktrans trimmed %}
+      Sorry, the <b>{{ object }}</b> topic can't be deleted while it still has tickets. Move the tickets to another topic first and then try again.
+    {% endblocktrans %}
+  {% else %}
+    {% blocktrans trimmed %}
+      You are about to delete the <b>{{ object }}</b> topic. There is no way to undo this. Are you sure?
+    {% endblocktrans %}
+  {% endif %}
+{% endblock fields %}
+{% block form-buttons %}
+  {% if not has_tickets %}<input type="submit" value="{{ submit_button_name }}" class="btn btn-primary">{% endif %}
+{% endblock form-buttons %}

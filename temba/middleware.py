@@ -1,21 +1,15 @@
 import cProfile
 import json
-import logging
 import pstats
 import traceback
 from io import StringIO
 
 from django.conf import settings
 from django.contrib import messages
-from django.http import HttpResponseRedirect
-from django.urls import reverse
+from django.http import HttpResponseForbidden
 from django.utils import timezone, translation
 
 from temba.orgs.models import Org, User
-
-from .context_processors_weni import use_weni_layout
-
-logger = logging.getLogger(__name__)
 
 
 class ExceptionMiddleware:
@@ -39,6 +33,7 @@ class OrgMiddleware:
 
     session_key = "org_id"
     header_name = "X-Temba-Org"
+    service_header_name = "X-Temba-Service-Org"
     select_related = ("parent",)
 
     def __init__(self, get_response=None):
@@ -48,9 +43,11 @@ class OrgMiddleware:
         assert hasattr(request, "user"), "must be called after django.contrib.auth.middleware.AuthenticationMiddleware"
 
         request.org = self.determine_org(request)
-        if request.org:
-            # set our current role for this org
-            request.role = request.org.get_user_role(request.user)
+
+        # if request has an org header, ensure it matches the current org (used to prevent cross-org form submissions)
+        posted_org_id = request.headers.get(self.header_name)
+        if posted_org_id and request.org and request.org.id != int(posted_org_id):
+            return HttpResponseForbidden()
 
         request.branding = settings.BRAND
 
@@ -71,6 +68,11 @@ class OrgMiddleware:
 
         # check for value in session
         org_id = request.session.get(self.session_key, None)
+
+        # staff users alternatively can pass a service header
+        if user.is_staff:
+            org_id = request.headers.get(self.service_header_name, org_id)
+
         if org_id:
             org = Org.objects.filter(is_active=True, id=org_id).select_related(*self.select_related).first()
 
@@ -197,16 +199,3 @@ class ProfilerMiddleware:  # pragma: no cover
             self.profiler = cProfile.Profile()
             args = (request,) + callback_args
             return self.profiler.runcall(callback, *args, **callback_kwargs)
-
-
-class RedirectMiddleware:
-    def __init__(self, get_response=None):
-        self.get_response = get_response
-
-    def __call__(self, request):
-        if hasattr(settings, "WENI_DOMAINS"):
-            if use_weni_layout(request)["use_weni_layout"]:
-                return self.get_response(request)
-        if not request.path.startswith("/redirect") and not request.path.startswith("/api"):
-            return HttpResponseRedirect(reverse("weni.redirect"))
-        return self.get_response(request)

@@ -7,7 +7,7 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from temba.orgs.views import OrgPermsMixin
+from temba.orgs.views.mixins import OrgPermsMixin
 from temba.utils import countries
 from temba.utils.fields import InputWidget, SelectWidget
 from temba.utils.models import generate_uuid
@@ -483,7 +483,7 @@ class Connect(ChannelTypeMixin, OrgPermsMixin, SmartFormView):
     submit_button_name = "Save"
     success_message = "Vonage Account successfully connected."
     template_name = "channels/types/vonage/connect.html"
-    menu_path = "/settings/workspace"
+    menu_path = "/settings/channels/new-channel"
     title = "Connect Vonage"
 
     def get_success_url(self):

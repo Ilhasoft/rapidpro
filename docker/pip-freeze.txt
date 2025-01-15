@@ -72,8 +72,6 @@ django-redis==4.12.1 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
 django-timezone-field==4.1.2 ; python_version >= "3.5"
     # via -r ../pip-requires.txt
-djangorestframework==3.12.4 ; python_version >= "3.5"
-    # via -r ../pip-requires.txt
 elastic-apm==5.1.0
     # via -r pip-requires.txt
 elasticsearch==7.12.0 ; (python_version >= "2.7" and python_full_version < "3.0.0") or (python_full_version >= "3.4.0" and python_version < "4")

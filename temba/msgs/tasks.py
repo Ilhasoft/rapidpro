@@ -7,21 +7,22 @@ from django.utils import timezone
 
 from temba.utils.crons import cron_task
 
-from .models import BroadcastMsgCount, LabelCount, Media, Msg, SystemLabelCount
+from .models import BroadcastMsgCount, LabelCount, Media, Msg
 
 logger = logging.getLogger(__name__)
 
 
 @cron_task()
-def fail_old_messages():
+def fail_old_android_messages():
     """
-    Looks for any stalled outgoing messages older than 1 week. These are typically from Android relayers which have
-    stopped syncing, and would be confusing to go out.
+    Fails old Android that haven't sent because their relayer isn't syncing. Note that we can't fail non-Android
+    messages here because they're still in Courier's queue.
     """
-    one_week_ago = timezone.now() - timedelta(days=7)
+
     too_old = Msg.objects.filter(
-        created_on__lte=one_week_ago,
+        created_on__lte=timezone.now() - timedelta(days=7),
         direction=Msg.DIRECTION_OUT,
+        is_android=True,
         status__in=(Msg.STATUS_INITIALIZING, Msg.STATUS_QUEUED, Msg.STATUS_ERRORED),
     )
     num_failed = too_old.update(status=Msg.STATUS_FAILED, failed_reason=Msg.FAILED_TOO_OLD, modified_on=timezone.now())
@@ -31,7 +32,6 @@ def fail_old_messages():
 
 @cron_task(lock_timeout=7200)
 def squash_msg_counts():
-    SystemLabelCount.squash()
     LabelCount.squash()
     BroadcastMsgCount.squash()
 

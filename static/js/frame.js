@@ -1,5 +1,7 @@
 var pendingRequests = [];
 
+const OMIT_ORG_URLS = ['/staff/', '/org/choose/'];
+
 function onSpload(fn) {
   var container = document.querySelector('.spa-container');
   if (!container) {
@@ -14,7 +16,7 @@ function onSpload(fn) {
         var eventContainer = document.querySelector('.spa-content');
         if (eventContainer) {
           eventContainer.addEventListener('temba-spa-ready', fn, {
-            once: true,
+            once: true
           });
         }
       } else {
@@ -148,7 +150,7 @@ function handleUpdateComplete() {
     content.scrollTo({
       top: 0,
       left: 0,
-      behavior: 'smooth',
+      behavior: 'smooth'
     });
   }
 }
@@ -170,7 +172,8 @@ function spaPost(url, options) {
   const requestOptions = {
     ignoreEvents: false,
     ignoreHistory: false,
-    headers: options.headers || {},
+    fullPage: options.fullPage || false,
+    headers: options.headers || {}
   };
 
   if (options.queryString) {
@@ -186,6 +189,10 @@ function spaPost(url, options) {
 }
 
 function spaRequest(url, options) {
+  if (!checkForUnsavedChanges()) {
+    return;
+  }
+
   showLoading();
 
   var refererPath = window.location.pathname;
@@ -195,12 +202,20 @@ function spaRequest(url, options) {
   const ignoreHistory = options.ignoreHistory || false;
   const body = options.body || null;
   const headers = options.headers || {};
+  const fullPage = options.fullPage || false;
 
-  headers['TEMBA-REFERER-PATH'] = refererPath;
-  headers['TEMBA-PATH'] = url;
+  headers['X-Temba-Referrer-Path'] = refererPath;
+  headers['X-Temba-Path'] = url;
 
-  if (!ignoreHistory) {
-    addToHistory(url);
+  // don't include temba org for service changes
+  const omitted = !!OMIT_ORG_URLS.find((omitUrl) => {
+    if (url.includes(omitUrl)) {
+      return true;
+    }
+  });
+
+  if (!omitted && window.org_id) {
+    headers['X-Temba-Org'] = window.org_id;
   }
 
   const ajaxOptions = {
@@ -209,6 +224,7 @@ function spaRequest(url, options) {
     ignoreEvents: ignoreEvents,
     cancel: true,
     showErrors: !!options.showErrors,
+    ignoreHistory
   };
 
   if (body) {
@@ -216,10 +232,10 @@ function spaRequest(url, options) {
     ajaxOptions.body = body;
   }
 
-  return fetchAjax(url, ajaxOptions).then(hideLoading);
+  return fetchAjax(url, ajaxOptions, fullPage).then(hideLoading);
 }
 
-function fetchAjax(url, options) {
+function fetchAjax(url, options, fullPage = false) {
   // create our default options
   options = options || {};
 
@@ -244,14 +260,15 @@ function fetchAjax(url, options) {
     options['headers']['X-CSRFToken'] = csrf;
   }
 
-  options['headers']['TEMBA-SPA'] = 1;
-  options['headers']['X-PJAX'] = 1;
+  if (!fullPage) {
+    options['headers']['X-Temba-Spa'] = 1;
+  }
 
   let container = options['container'] || null;
 
-  // reroute any pjax requests made from spa pages and push the content there instead
-  if (container == '#pjax' && document.querySelector('.spa-content')) {
-    container = '.spa-content';
+  // we don't track history for interior requests
+  if (container != '.spa-content') {
+    options['ignoreHistory'] = true;
   }
 
   var controller = new AbortController();
@@ -261,7 +278,16 @@ function fetchAjax(url, options) {
 
   return fetch(toFetch, options)
     .then(function (response) {
-      const toasts = response.headers.get('x-temba-toasts');
+      if (response.status >= 400) {
+        showErrorDialog();
+        return;
+      }
+
+      if (!options.ignoreHistory) {
+        addToHistory(url);
+      }
+
+      const toasts = response.headers.get('X-Temba-Toasts');
       if (toasts) {
         const toastEle = document.querySelector('temba-toast');
         if (toastEle) {
@@ -275,8 +301,8 @@ function fetchAjax(url, options) {
       });
 
       // if we have a version mismatch, reload the page
-      var version = response.headers.get('x-temba-version');
-      var org = response.headers.get('x-temba-org');
+      var version = response.headers.get('X-Temba-Version');
+      var org = response.headers.get('X-Temba-Org');
 
       if (response.type !== 'cors' && org && org != org_id) {
         if (response.redirected) {
@@ -302,22 +328,30 @@ function fetchAjax(url, options) {
       if (container) {
         // if we got redirected when updating our container, make sure reflect it in the url
         if (response.redirected) {
-          var url = response.url;
-          if (url) {
-            window.history.replaceState({ url: url }, '', url);
+          if (response.url) {
+            window.history.replaceState(
+              { url: response.url },
+              '',
+              response.url
+            );
           }
         }
 
         // special case for spa content, break out into a full page load
         if (
           container === '.spa-content' &&
-          response.headers.get('x-temba-content-only') != 1
+          response.headers.get('X-Temba-Content-Only') != 1
         ) {
-          document.location.href = url;
+          document.location.href = response.url;
           return;
         }
 
         return response.text().then(function (body) {
+          if (body.startsWith('<!DOCTYPE HTML>')) {
+            document.location.href = response.url;
+            return;
+          }
+
           var containerEle = document.querySelector(container);
           if (containerEle) {
             // special care to unmount the editor
@@ -363,21 +397,27 @@ function handleMenuClicked(event) {
   if (item.type == 'modax-button') {
     var modaxOptions = {
       disabled: false,
-      onSubmit: item.on_submit,
+      onSubmit: item.on_submit
     };
     showModax(item.name, item.href, modaxOptions);
-  }
-
-  if (!item.popup && selection.length > 1 && selection[0] == 'ticket') {
-    if (window.handleTicketsMenuChanged) {
-      handleTicketsMenuChanged(item);
-    }
+    return;
   }
 
   // posterize if called for
   if (item.href && item.posterize) {
     posterize(item.href);
   }
+}
+
+function checkForUnsavedChanges() {
+  var store = document.querySelector('temba-store');
+  if (store) {
+    const unsavedChanges = store.getDirtyMessage();
+    if (unsavedChanges) {
+      return confirm(unsavedChanges);
+    }
+  }
+  return true;
 }
 
 function handleMenuChanged(event) {
@@ -400,6 +440,7 @@ function handleMenuChanged(event) {
 }
 
 function showModax(header, endpoint, modaxOptions) {
+  const lastElement = document.activeElement;
   var options = modaxOptions || {};
   var modax = document.querySelector('temba-modax#shared-modax');
   if (modax) {
@@ -424,9 +465,14 @@ function showModax(header, endpoint, modaxOptions) {
       modax['-temba-redirected'] = refreshMenu;
     }
 
-    modax.headers = { 'TEMBA-SPA': 1 };
+    modax.headers = { 'X-Temba-Spa': 1 };
     modax.header = header;
     modax.endpoint = endpoint;
+
+    // take our focus from the thing that invocked us
+    if (lastElement) {
+      lastElement.blur();
+    }
     modax.open = true;
   }
 }
@@ -437,12 +483,6 @@ function handleWorkspaceChanged(orgId) {
 
 document.addEventListener('temba-redirected', function (event) {
   spaGet(event.detail.url, true);
-});
-
-document.addEventListener('temba-pjax-complete', function () {
-  refreshMenu();
-  hideLoading();
-  handleUpdateComplete();
 });
 
 function loadFromState(state) {
@@ -502,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
 function posterize(href) {
   var url = new URL(href, window.location.origin);
-  spaPost(url.pathname, { queryString: url.searchParams });
+  spaPost(url.pathname, { queryString: url.searchParams, fullPage: true });
 }
 
 function handlePosterize(ele) {
@@ -568,27 +608,26 @@ document.addEventListener('DOMContentLoaded', function () {
   var container = document.querySelector('.spa-container');
   if (container) {
     container.classList.remove('initial-load');
-  }
+    container.addEventListener('click', function (event) {
+      // get our immediate path
+      const path = event.composedPath().slice(0, 10);
 
-  container.addEventListener('click', function (event) {
-    // get our immediate path
-    const path = event.composedPath().slice(0, 10);
+      // find the first anchor tag
+      const ele = path.find((ele) => ele.tagName === 'A');
 
-    // find the first anchor tag
-    const ele = path.find((ele) => ele.tagName === 'A');
+      if (ele) {
+        const url = new URL(ele.href);
+        event.preventDefault();
+        event.stopPropagation();
 
-    if (ele) {
-      const url = new URL(ele.href);
-      event.preventDefault();
-      event.stopPropagation();
-
-      // if we are working within the app, use spaGet
-      if (url.host === window.location.host && !event.metaKey) {
-        spaGet(ele.href);
-      } else {
-        // otherwise open a new tab
-        window.open(ele.href, '_blank');
+        // if we are working within the app, use spaGet
+        if (url.host === window.location.host && !event.metaKey) {
+          spaGet(ele.href);
+        } else {
+          // otherwise open a new tab
+          window.open(ele.href, '_blank');
+        }
       }
-    }
-  });
+    });
+  }
 });
