@@ -1,3 +1,7 @@
+1.8.4-rapidpro-7.4.2
+----------
+* Add business_management permission
+
 1.8.3-rapidpro-7.4.2
 ----------
 * Update django-storages lib to 1.14.3
