@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("orgs", "0153_invitation_role_code_invitation_team_and_more"),
-        ("tickets", "0068_backfill_default_teams")
+        ("tickets", "0068_backfill_default_teams"),
     ]
 
     operations = [
