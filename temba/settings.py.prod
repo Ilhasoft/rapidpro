@@ -499,3 +499,7 @@ CONTACT_IMPORT_BATCH_SIZE = env.int("CONTACT_IMPORT_BATCH_SIZE", default=100)
 
 # Update org channels limit
 ORG_LIMIT_DEFAULTS["channels"] = env.int("ORG_LIMIT_DEFAULTS_CHANNELS", default=250)
+
+# DynamoDB configuration
+DYNAMO_ENDPOINT_URL = env("DYNAMO_ENDPOINT_URL", default="http://localhost:6000")
+DYNAMO_TABLE_PREFIX = env("DYNAMO_TABLE_PREFIX", default="Temba")
