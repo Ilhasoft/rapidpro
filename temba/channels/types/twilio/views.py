@@ -13,7 +13,7 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
-from temba.orgs.views import OrgPermsMixin
+from temba.orgs.views.mixins import OrgPermsMixin
 from temba.utils import countries
 from temba.utils.fields import InputWidget, SelectWidget
 from temba.utils.timezones import timezone_to_country_code
@@ -427,7 +427,7 @@ class Connect(ChannelTypeMixin, OrgPermsMixin, SmartFormView):
     field_config = dict(account_sid=dict(label=""), account_token=dict(label=""))
     success_message = "Twilio Account successfully connected."
     template_name = "channels/types/twilio/connect.html"
-    menu_path = "/settings/workspace"
+    menu_path = "/settings/channels/new-channel"
     title = "Connect Twilio"
 
     def pre_process(self, *args, **kwargs):

@@ -189,6 +189,9 @@ AWS_BUCKET_DOMAIN = env("AWS_BUCKET_DOMAIN", default=f"{AWS_STORAGE_BUCKET_NAME}
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 STORAGE_URL = f"https://{AWS_BUCKET_DOMAIN}"
 
+AWS_REGION = env("AWS_REGION", default="eu-west-1")
+AWS_S3_REGION_NAME = AWS_REGION
+
 STORAGES = {
     # default storage for things like exports, imports
     "default": {
@@ -496,3 +499,7 @@ CONTACT_IMPORT_BATCH_SIZE = env.int("CONTACT_IMPORT_BATCH_SIZE", default=100)
 
 # Update org channels limit
 ORG_LIMIT_DEFAULTS["channels"] = env.int("ORG_LIMIT_DEFAULTS_CHANNELS", default=250)
+
+# DynamoDB configuration
+DYNAMO_ENDPOINT_URL = env("DYNAMO_ENDPOINT_URL", default="http://localhost:6000")
+DYNAMO_TABLE_PREFIX = env("DYNAMO_TABLE_PREFIX", default="Temba")

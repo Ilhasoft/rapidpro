@@ -84,7 +84,9 @@
                 <br />
               </div>
               <b class="font-bold">Authorization:</b>
-              <div class="md:text-base md:inline whitespace-nowrap text-sm">Token {{ api_token }}</div>
+              <div class="md:text-base md:inline whitespace-nowrap text-sm">
+                Token <span class="italic">[{% trans "your API Token" %}]</span>
+              </div>
             </div>
             {% if endpoint.params %}
               <div class="md:flex form-group items-center">
@@ -110,12 +112,8 @@
             <div class="pull-left">
               <a href="{{ endpoint.url }}">{% trans "View Full Documentation" %}</a>
             </div>
-            {% if api_token %}
-              <div onclick="javascript:handleRequest('{{ endpoint.slug }}', '{{ endpoint.method }}', '{{ endpoint.url }}.json')"
-                   class="button-primary">{{ endpoint.method|upper }}</div>
-            {% else %}
-              <span>{% trans "Log in to use the Explorer" %}</span>
-            {% endif %}
+            <div onclick="javascript:handleRequest('{{ endpoint.slug }}', '{{ endpoint.method }}', '{{ endpoint.url }}.json')"
+                 class="button-primary">{{ endpoint.method|upper }}</div>
           </div>
           <pre style="margin-bottom:0;" class="prettyprint result mb-0 mt-4 p-4" id="result-{{ endpoint.slug }}"></pre>
         </div>

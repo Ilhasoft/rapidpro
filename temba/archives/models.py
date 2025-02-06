@@ -1,11 +1,11 @@
 import base64
 import gzip
 import hashlib
+import io
 import re
 import tempfile
 from datetime import date, datetime
 from gettext import gettext as _
-from urllib.parse import urlparse
 
 from dateutil.relativedelta import relativedelta
 
@@ -14,7 +14,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-from temba.utils import json, s3, sizeof_fmt
+from temba.utils import json, s3
 from temba.utils.s3 import EventStreamReader
 
 KEY_PATTERN = re.compile(r"^(?P<org>\d+)/(?P<type>run|message)_(?P<period>(D|M)\d+)_(?P<hash>[0-9a-f]{32})\.jsonl\.gz$")
@@ -35,45 +35,32 @@ class Archive(models.Model):
     archive_type = models.CharField(choices=TYPE_CHOICES, max_length=16)
     created_on = models.DateTimeField(default=timezone.now)
 
-    # the length of time this archive covers
     period = models.CharField(max_length=1, choices=PERIOD_CHOICES, default=PERIOD_DAILY)
-
-    # the earliest modified_on date for records in this archive (inclusive)
-    start_date = models.DateField()
-
-    # number of records in this archive
-    record_count = models.IntegerField(default=0)
-
-    # size in bytes of the archive contents (after compression)
-    size = models.BigIntegerField(default=0)
-
-    # MD5 hash of the archive contents (after compression)
-    hash = models.TextField()
-
-    # full URL of this archive
-    url = models.URLField()
-
-    # whether the records in this archive need to be deleted
-    needs_deletion = models.BooleanField(default=False)
-
-    # number of milliseconds it took to build and upload this archive
-    build_time = models.IntegerField()
+    start_date = models.DateField()  # the earliest modified_on date for records (inclusive)
+    record_count = models.IntegerField(default=0)  # number of records in this archive
+    size = models.BigIntegerField(default=0)  # size in bytes of the archive contents (after compression)
+    hash = models.TextField()  # MD5 hash of the archive contents (after compression)
+    url = models.URLField()  # full URL of this archive
+    build_time = models.IntegerField()  # time in ms it took to build and upload this archive
 
     # archive we were rolled up into, if any
     rollup = models.ForeignKey("archives.Archive", on_delete=models.PROTECT, null=True)
 
+    # whether the records in this archive need to be deleted
+    needs_deletion = models.BooleanField(default=False)
+
     # when this archive's records where deleted (if any)
     deleted_on = models.DateTimeField(null=True)
 
-    def size_display(self):
-        return sizeof_fmt(self.size)
+    @classmethod
+    def storage(cls):
+        return storages["archives"]
 
     def get_storage_location(self) -> tuple:
         """
         Returns a tuple of the storage bucket and key
         """
-        url_parts = urlparse(self.url)
-        return url_parts.netloc.split(".")[0], url_parts.path[1:]
+        return s3.split_url(self.url)
 
     def get_end_date(self):
         """
@@ -94,8 +81,9 @@ class Archive(models.Model):
             archive.delete()
 
         # find any remaining S3 files and remove them for this org
-        s3_bucket = storages["archives"].bucket.name
+        s3_bucket = cls.storage().bucket.name
         s3_client = s3.client()
+
         paginator = s3_client.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=s3_bucket, Prefix=f"{org.id}/"):
             archive_objs = page.get("Contents", [])
@@ -290,6 +278,19 @@ def jsonlgz_rewrite(in_file, out_file, transform) -> tuple:
     out_stream.close()
 
     return out_wrapped.hash, out_wrapped.size
+
+
+def jsonlgz_encode(records: list) -> tuple:
+    stream = io.BytesIO()
+    wrapper = FileAndHash(stream)
+    gz = gzip.GzipFile(fileobj=wrapper, mode="wb")
+
+    for record in records:
+        gz.write(json.dumps(record).encode("utf-8"))
+        gz.write(b"\n")
+    gz.close()
+
+    return stream, wrapper.hash.hexdigest(), wrapper.size
 
 
 class FileAndHash:

@@ -7,7 +7,6 @@ django-mptt
 django-redis
 django-storages
 django-timezone-field
-djangorestframework
 dj-database-url
 smartmin
 

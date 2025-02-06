@@ -20,7 +20,7 @@ class CRUDLTestMixin:
 
         self.client.logout()
         if user:
-            self.login(user, True, choose_org)
+            self.login(user, choose_org=choose_org)
 
         for check in checks:
             check.pre_check(self, pre_msg_prefix)
@@ -184,13 +184,14 @@ class CRUDLTestMixin:
 
         self.assertEqual(items, actual)
 
-    def assertContentMenu(self, url: str, user, items: list):
+    def assertContentMenu(self, url: str, user, items: list, choose_org=None):
         response = self.requestView(
             url,
             user,
             checks=[StatusCode(200), ContentType("application/json")],
-            HTTP_TEMBA_CONTENT_MENU=1,
-            HTTP_TEMBA_SPA=1,
+            choose_org=choose_org,
+            HTTP_X_TEMBA_CONTENT_MENU=1,
+            HTTP_X_TEMBA_SPA=1,
         )
         self.assertEqual(items, [item.get("label", "-") for item in response.json()["items"]])
 
@@ -383,7 +384,7 @@ class ContentType(BaseCheck):
 
 class StaffRedirect(BaseCheck):
     def check(self, test_cls, response, msg_prefix):
-        test_cls.assertRedirect(response, reverse("orgs.org_service"), msg=f"{msg_prefix}: expected staff redirect")
+        test_cls.assertRedirect(response, reverse("staff.org_service"), msg=f"{msg_prefix}: expected staff redirect")
 
 
 class LoginRedirectOr404(BaseCheck):

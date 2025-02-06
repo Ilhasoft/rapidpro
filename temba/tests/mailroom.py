@@ -95,13 +95,12 @@ class Mocks:
     def contact_urns(self, urns: dict):
         self._contact_urns.append(urns)
 
-    def flow_inspect(self, *, dependencies=(), issues=(), results=(), waiting_exits=(), parent_refs=()):
+    def flow_inspect(self, *, dependencies=(), issues=(), results=(), parent_refs=()):
         self._flow_inspect.append(
             {
                 "dependencies": dependencies,
                 "issues": issues,
                 "results": results,
-                "waiting_exits": waiting_exits,
                 "parent_refs": parent_refs,
             }
         )
@@ -187,6 +186,9 @@ class TestClient(MailroomClient):
         )
         return {"id": msg.id, "duplicate": False}
 
+    def android_sync(self, channel):
+        return {"id": channel.id}
+
     @_client_method
     def contact_create(self, org, user, contact: mailroom.ContactSpec):
         status = {v: k for k, v in Contact.ENGINE_STATUSES.items()}[contact.status]
@@ -200,6 +202,10 @@ class TestClient(MailroomClient):
             fields=contact.fields,
             group_uuids=contact.groups,
         )
+
+    @_client_method
+    def contact_deindex(self, org, contacts):
+        return {"deindexed": len(contacts)}
 
     @_client_method
     def contact_export(self, org, group, query: str) -> list[int]:
@@ -265,7 +271,7 @@ class TestClient(MailroomClient):
         return mailroom.ParsedQuery(query=query, metadata=mock_inspect_query(org, query))
 
     @_client_method
-    def contact_search(self, org, group, query, sort, offset=0, exclude_ids=()):
+    def contact_search(self, org, group, query: str, sort: str, offset=0, limit=50, exclude_ids=()):
         mock = self.mocks._contact_search.get(query or "")
 
         assert mock, f"missing contact_search mock for query '{query}'"
@@ -274,27 +280,37 @@ class TestClient(MailroomClient):
 
     @_client_method
     def contact_urns(self, org, urns: list[str]):
-        results = [mailroom.URNResult(normalized=urn) for urn in urns]
+        results = [mailroom.URNResult(normalized=urn, e164=True) for urn in urns]
 
         if self.mocks._contact_urns:
-            urn_by_id_or_err = self.mocks._contact_urns.pop(0)
+            result_by_urn = self.mocks._contact_urns.pop(0)
             for i, urn in enumerate(urns):
-                id_or_err = urn_by_id_or_err.get(urn)
-                if isinstance(id_or_err, int):
-                    results[i].contact_id = id_or_err
-                elif isinstance(id_or_err, str):
-                    results[i].error = id_or_err
+                result = result_by_urn.get(urn)
+                if isinstance(result, str):
+                    results[i].error = result
+                elif isinstance(result, bool):
+                    results[i].e164 = result
+                elif isinstance(result, int):
+                    results[i].contact_id = result
 
         return results
+
+    @_client_method
+    def flow_clone(self, definition: dict, dependency_mapping):
+        # we replace UUIDs in production to ensure uniqueness but for tests it's nicer to know the UUIDs
+        return definition
 
     @_client_method
     def flow_inspect(self, org, definition: dict):
         if self.mocks._flow_inspect:
             return self.mocks._flow_inspect.pop(0)
 
-        # fall back to the real client - note that this why mailroom has to be running during tests
-        # and is something we might want to change in the future
-        return super().flow_inspect(org, definition)
+        return {
+            "dependencies": [],
+            "issues": [],
+            "results": [],
+            "parent_refs": [],
+        }
 
     @_client_method
     def flow_start_preview(self, org, flow, include, exclude):
@@ -366,6 +382,10 @@ class TestClient(MailroomClient):
             "created_on": msg.created_on.isoformat(),
             "modified_on": msg.modified_on.isoformat(),
         }
+
+    @_client_method
+    def org_deindex(self, org):
+        return {}
 
     @_client_method
     def ticket_assign(self, org, user, tickets, assignee):
@@ -526,12 +546,14 @@ def apply_modifiers(org, user, contacts, modifiers: list):
             topic = org.topics.get(uuid=mod.topic.uuid, is_active=True)
             assignee = org.users.get(email=mod.assignee.email, is_active=True) if mod.assignee else None
             for contact in contacts:
-                contact.tickets.create(
+                ticket = contact.tickets.create(
                     org=org,
                     topic=topic,
                     status=Ticket.STATUS_OPEN,
-                    body=mod.body,
                     assignee=assignee,
+                )
+                ticket.events.create(
+                    org=org, contact=contact, event_type=TicketEvent.TYPE_OPENED, note=mod.note, created_by=user
                 )
 
         elif mod.type == "urns":
