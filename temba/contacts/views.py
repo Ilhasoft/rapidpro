@@ -792,7 +792,8 @@ class ContactCRUDL(SmartCRUDL):
 
             try:
                 obj.modify(self.request.user, mods)
-            except Exception:
+            except Exception as e:
+                logger.error(f"Erro ao modificar o contato {obj.id}: {str(e)}", exc_info=True)
                 errors = form._errors.setdefault(forms.forms.NON_FIELD_ERRORS, forms.utils.ErrorList())
                 errors.append(_("An error occurred updating your contact. Please try again later."))
                 return self.render_to_response(self.get_context_data(form=form))
