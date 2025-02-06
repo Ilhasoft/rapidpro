@@ -1,3 +1,7 @@
+1.7.31-rapidpro-9.3.142
+----------
+* Update RapidPro with version 9.3.142
+
 1.7.31-rapidpro-9.2.5
 ----------
 * Update RapidPro with version 9.2.5
