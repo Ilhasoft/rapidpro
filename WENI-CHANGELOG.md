@@ -1,3 +1,7 @@
+1.7.32-rapidpro-10.0.0
+----------
+* Fix: AWS region
+
 1.7.31-rapidpro-10.0.0
 ----------
 * Update RapidPro with version 10.0.0

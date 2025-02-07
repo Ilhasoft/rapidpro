@@ -189,8 +189,10 @@ AWS_BUCKET_DOMAIN = env("AWS_BUCKET_DOMAIN", default=f"{AWS_STORAGE_BUCKET_NAME}
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 STORAGE_URL = f"https://{AWS_BUCKET_DOMAIN}"
 
-AWS_REGION = env("AWS_REGION", default="eu-west-1")
+AWS_REGION = env("AWS_REGION", default="us-east-1")
 AWS_S3_REGION_NAME = AWS_REGION
+
+DYNAMO_AWS_REGION = env("DYNAMO_AWS_REGION", default="eu-west-1")
 
 STORAGES = {
     # default storage for things like exports, imports
