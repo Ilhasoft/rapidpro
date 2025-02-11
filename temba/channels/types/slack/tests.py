@@ -1,8 +1,12 @@
-import slack_sdk
 from unittest.mock import patch
-from temba.tests import TembaTest
-from ...models import Channel
+
+import slack_sdk
+
 from django.urls import reverse
+
+from temba.tests import TembaTest
+
+from ...models import Channel
 
 
 class SlackTypeTest(TembaTest):

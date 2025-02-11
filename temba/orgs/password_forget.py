@@ -1,10 +1,9 @@
-from django.core.cache import cache
 from django import forms
-from django.utils.translation import gettext_lazy as _
 from django.conf import settings
+from django.core.cache import cache
+from django.utils.translation import gettext_lazy as _
 
 from .views import UserCRUDL as UserCRUDLBase
-
 
 USER_RECOVER_ATTEMPTS_CACHE_KEY = "user-email:{email}"
 USER_RECOVER_TIME_INTERVAL = settings.USER_RECOVER_TIME_INTERVAL * 60 * 60
@@ -20,10 +19,7 @@ class UserCRUDL(UserCRUDLBase):
                 attempts = cache.get_or_set(attempts_key, 1, USER_RECOVER_TIME_INTERVAL)
                 cache.incr(attempts_key, 1)
 
-                if (
-                    attempts is not None
-                    and attempts > settings.USER_RECOVER_MAX_ATTEMPTS
-                ):
+                if attempts is not None and attempts > settings.USER_RECOVER_MAX_ATTEMPTS:
                     cache.touch(attempts_key, USER_RECOVER_TIME_INTERVAL)
                     raise forms.ValidationError(
                         _(
