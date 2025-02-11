@@ -1055,7 +1055,7 @@ class FlowMigrationTest(TembaTest):
         webhook_node = order_checker.get_definition()["nodes"][3]
         webhook_action = webhook_node["actions"][0]
 
-        self.assertEqual("https://app.rapidpro.io/demo/status/", webhook_action["url"])
+        self.assertEqual("https://new.push.al/demo/status/", webhook_action["url"])
 
         # our test user doesn't use an email address, check for Administrator for the email
         email_node = order_checker.get_definition()["nodes"][10]
