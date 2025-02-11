@@ -239,8 +239,6 @@ INSTALLED_APPS += (
     # OIDC authentication
     "mozilla_django_oidc",
     "weni.auth",
-    # Templates (django-template-macros)
-    "macros",
     "corsheaders",
 )
 
