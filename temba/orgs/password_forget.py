@@ -20,12 +20,14 @@ class UserCRUDL(UserCRUDLBase):
                 attempts = cache.get_or_set(attempts_key, 1, USER_RECOVER_TIME_INTERVAL)
                 cache.incr(attempts_key, 1)
 
-                if attempts is not None and attempts > settings.USER_RECOVER_MAX_ATTEMPTS:
+                if (
+                    attempts is not None
+                    and attempts > settings.USER_RECOVER_MAX_ATTEMPTS
+                ):
                     cache.touch(attempts_key, USER_RECOVER_TIME_INTERVAL)
                     raise forms.ValidationError(
                         _(
-                            f"You have exceeded the maximum number of attempts, "
-                            "please try again in {settings.USER_RECOVER_TIME_INTERVAL} hours!"
+                            f"You have exceeded the maximum number of attempts, please try again in {settings.USER_RECOVER_TIME_INTERVAL} hours!"
                         )
                     )
 

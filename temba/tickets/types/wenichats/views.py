@@ -1,6 +1,5 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from temba.api.models import APIToken
 
 from temba.tickets.models import Ticketer
 from temba.tickets.views import BaseConnectView

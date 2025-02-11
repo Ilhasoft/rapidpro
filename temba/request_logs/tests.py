@@ -2,14 +2,11 @@ from datetime import timedelta
 
 from requests import RequestException
 
-from django.conf import settings
-from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from temba.classifiers.models import Classifier
 from temba.classifiers.types.wit import WitType
-from temba.contacts.models import ContactURN
 from temba.tests import CRUDLTestMixin, MockResponse, TembaTest
 from temba.tickets.models import Ticketer
 from temba.tickets.types.mailgun import MailgunType

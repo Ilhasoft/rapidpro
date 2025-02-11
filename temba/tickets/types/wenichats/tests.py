@@ -5,8 +5,6 @@ from django.urls import reverse
 from unittest.mock import patch
 from temba.utils import json
 
-from pprint import pprint
-
 
 class WeniChatsTypeTest(TembaTest):
     def test_is_available_to(self):
