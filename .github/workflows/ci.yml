@@ -6,7 +6,7 @@ jobs:
     env:
       python-version: "3.9.x"
       pg-version: "15"
-      postgis-version: "3.2"
+      postgis-version: "3.1"
       redis-version: "6.2"
       node-version: "10"
       elastic-version: "7.17.6"
