@@ -6,10 +6,10 @@ COPY ./pyproject.toml .
 COPY ./poetry.lock .
 COPY ./docker/pip-requires.txt .
 
-RUN python -m pip install -U poetry==1.1.15 \
+RUN python -m pip install -U poetry==1.8.4 \
  && poetry cache clear -n --all pypi \
  && poetry add -n --lock $(cat pip-requires.txt) \
- && poetry export --without-hashes --output requirements.txt
+ && poetry export --without-hashes --with dev --output requirements.txt
 
 FROM python:3.9-slim-bullseye
 
@@ -36,7 +36,7 @@ RUN apt-get update \
  && apt-get install --no-install-recommends --no-install-suggests -y gcc bzip2 git curl nginx libpq-dev gettext \
     libgdal-dev python3-cffi python3-gdal vim
 
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash - \
+RUN curl -sL https://deb.nodesource.com/setup_18.x | bash - \
  && apt-get install --no-install-recommends --no-install-suggests -y nodejs
 
 RUN rm -rf /var/lib/apt/lists/*
@@ -72,7 +72,7 @@ RUN su $PROJECT_USER -c "npm install --global \
 
 RUN su $PROJECT_USER -c "ln -s $PROJECT_PATH/temba/settings.py.prod $PROJECT_PATH/temba/settings.py"
 
-RUN su $PROJECT_USER -c "npm install"
+RUN su $PROJECT_USER -c "yarn install"
 
 EXPOSE 8000
 EXPOSE 8001
