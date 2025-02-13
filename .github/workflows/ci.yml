@@ -5,13 +5,13 @@ jobs:
     name: Test
     env:
       python-version: "3.9.x"
-      pg-version: "14"
-      postgis-version: "3.2"
+      pg-version: "15"
+      postgis-version: "3.3"
       redis-version: "6.2"
       node-version: "10"
       elastic-version: "7.17.6"
       rpindexer-version: "7.5.0"
-      mailroom-version: "7.5.33"
+      mailroom-version: "7.5.36"
       DJANGO_SETTINGS_MODULE: temba.settings_ci
     runs-on: ubuntu-latest
     steps:
@@ -41,6 +41,7 @@ jobs:
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
+          version: 1.8.5
           virtualenvs-in-project: true
 
       - name: Install Redis
@@ -69,7 +70,7 @@ jobs:
           wget https://github.com/nyaruka/rp-indexer/releases/download/v${{ env.rpindexer-version }}/rp-indexer_${{ env.rpindexer-version }}_linux_amd64.tar.gz
           tar -xvf rp-indexer_${{ env.rpindexer-version }}_linux_amd64.tar.gz rp-indexer
           # fetch, extract and start mailroom
-          wget https://github.com/${{ github.repository_owner }}/mailroom/releases/download/v${{ env.mailroom-version }}/mailroom_${{ env.mailroom-version }}_linux_amd64.tar.gz
+          wget https://github.com/nyaruka/mailroom/releases/download/v${{ env.mailroom-version }}/mailroom_${{ env.mailroom-version }}_linux_amd64.tar.gz
           tar -xvf mailroom_${{ env.mailroom-version }}_linux_amd64.tar.gz mailroom
           ./mailroom -db=postgres://temba:temba@localhost:5432/temba?sslmode=disable -redis=redis://localhost:6379/10 -log-level=info > mailroom.log &
 

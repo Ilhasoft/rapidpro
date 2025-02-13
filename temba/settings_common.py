@@ -1317,3 +1317,7 @@ MACHINE_HOSTNAME = socket.gethostname().split(".")[0]
 
 # ElasticSearch configuration (URL RFC-1738)
 ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "http://localhost:9200")
+
+USER_RECOVER_TIME_INTERVAL = os.environ.get("USER_RECOVER_TIME_INTERVAL", default=12)
+
+WENI_DOMAINS = {"weni": os.environ.get("WENI_DOMAIN", default="weni.ai")}

@@ -66,8 +66,8 @@ def handler500(request):
     from django.http import HttpResponseServerError
     from django.template import loader
 
-    from .settings import BRANDING, DEFAULT_BRAND
     from .context_processors_weni import use_weni_layout
+    from .settings import BRANDING, DEFAULT_BRAND
 
     weni_layout = use_weni_layout(request)
 
