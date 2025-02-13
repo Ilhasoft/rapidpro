@@ -258,15 +258,8 @@ INSTALLED_APPS += (
     "elasticapm.contrib.django",
     # OIDC authentication
     "mozilla_django_oidc",
-    "weni.auth",
     "corsheaders",
 )
-
-if env("USE_INTERNAL_APP", default=True):
-    INSTALLED_APPS += (
-        "weni.internal",
-        "weni.ticketer_queues",
-    )
 
 # SENTRY
 # ------------------------------------------------------------------------------
@@ -340,11 +333,6 @@ RETENTION_PERIODS.update(
     httplog=timedelta(days=env.int("RETENTION_PERIODS_HTTPLOG", default=3)),
 )
 
-# Adds gRPC services
-GRPC_FRAMEWORK = {
-    "ROOT_HANDLERS_HOOK": "weni.grpc.core.urls.grpc_handlers",
-}
-
 # --------------------------------------------------------------------------------------------------
 # OpenID Connect settings
 # https://mozilla-django-oidc.readthedocs.io/en/stable/installation.html#add-settings-to-settings-py
@@ -360,10 +348,6 @@ OIDC_RP_SCOPES = env("OIDC_RP_SCOPES", default="openid email")
 OIDC_EXEMPT_URL_PATTERNS = [re.compile(url) for url in env.list("OIDC_EXEMPT_URL_PATTERNS", default=[])]
 OIDC_EXEMPT_URLS = OIDC_EXEMPT_URL_PATTERNS + env.list("OIDC_EXEMPT_URLS", default=[])
 OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS = env.int("OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS", default=(15 * 60))
-
-# Tells Django to authenticate via OIDC
-AUTHENTICATION_BACKENDS += ("weni.auth.backends.WeniOIDCAuthenticationBackend",)
-OIDC_DRF_AUTH_BACKEND = "weni.auth.backends.WeniOIDCAuthenticationBackend"
 
 # Used to enable authentication via Keycloak to legacy users
 SECRET_KEY_CHECK_LEGACY_USER = env("SECRET_KEY_CHECK_LEGACY_USER")
@@ -454,14 +438,12 @@ if DISABLE_OIDC:
 
     installed_apps_list = list(INSTALLED_APPS)
     installed_apps_list.remove("mozilla_django_oidc")
-    installed_apps_list.remove("weni.auth")
     INSTALLED_APPS = tuple(installed_apps_list)
 
     LOGGING["loggers"].pop("mozilla_django_oidc")
     LOGGING["loggers"].pop("weni_django_oidc")
 
     authentication_backend_list = list(AUTHENTICATION_BACKENDS)
-    authentication_backend_list.remove("weni.auth.backends.WeniOIDCAuthenticationBackend")
     AUTHENTICATION_BACKENDS = tuple(authentication_backend_list)
 
     OIDC_DRF_AUTH_BACKEND = None
