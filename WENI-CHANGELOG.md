@@ -1,3 +1,8 @@
+1.7.33-rapidpro-10.0.0
+----------
+* Remove any reference from weni-rp-apps
+* Remove tickets types
+
 1.7.32-rapidpro-10.0.0
 ----------
 * Fix: AWS region
