@@ -1,3 +1,7 @@
+1.7.34-rapidpro-10.0.0
+----------
+* Update node version in Dockerfile
+
 1.7.33-rapidpro-10.0.0
 ----------
 * Remove any reference from weni-rp-apps
