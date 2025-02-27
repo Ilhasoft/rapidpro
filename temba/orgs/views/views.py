@@ -430,7 +430,6 @@ class UserCRUDL(SmartCRUDL):
                 user.role = membership.role
                 user.team = membership.team
 
-            context["has_viewers"] = self.request.org.get_users(roles=[OrgRole.VIEWER]).exists()
             context["has_teams"] = Org.FEATURE_TEAMS in self.request.org.features
 
             admins = self.request.org.get_users(roles=[OrgRole.ADMINISTRATOR])
