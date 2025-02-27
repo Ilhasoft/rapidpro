@@ -154,7 +154,9 @@
           import '/out-tsc/temba-modules.js';
         </script>
       {% else %}
-        <script src="{% static '@nyaruka/temba-components/dist/temba-components.js' %}"></script>
+        {% compress js %}
+          <script src="{% static '@nyaruka/temba-components/dist/temba-components.js' %}"></script>
+        {% endcompress %}
       {% endif %}
       {% if user_org %}
         <temba-store {% if org_perms.globals.global_list %}globals="/api/v2/globals.json"{% endif %}
@@ -211,14 +213,14 @@
                     {% endblock menu-header %}
                   </temba-menu>
                 </div>
-                <div class="flex flex-col flex-grow spa-container initial-load">
-                  <div class="absolute spa-loader hide">
+                <div class="flex-grow spa-container flex flex-col initial-load">
+                  <div class="spa-loader hide absolute">
                     <div style="display:flex;z-index:100000;margin-top:0.1em;margin-left:1em" class="wrapper">
                       <temba-loading size="16" units="6">
                       </temba-loading>
                     </div>
                   </div>
-                  <div class="p-5 pb-5 spa-content">
+                  <div class="spa-content p-5 pb-5">
                     {% block extra-style %}
                     {% endblock extra-style %}
                     {% block extra-script %}
@@ -226,8 +228,8 @@
                     {% block page-header %}
                       {% csrf_token %}
                       <div class="mb-4">
-                        <div class="flex items-center no-menu">
-                          <div class="text-2xl text-gray-700 text-container">
+                        <div class="no-menu flex items-center">
+                          <div class="text-container text-2xl text-gray-700">
                             <div class="flex flex-row">
                               {% block title %}
                                 <div id="title-text">
@@ -238,7 +240,7 @@
                               {% endblock title %}
                             </div>
                           </div>
-                          <div class="flex-grow ml-6 mr-2 line">
+                          <div class="line flex-grow mr-2 ml-6">
                             <div class="h-0 border border-gray-200"></div>
                           </div>
                           {% if has_context_menu %}
@@ -260,7 +262,7 @@
                     {% endblock content %}
                   </div>
                   {% block footer %}
-                    <div class="py-6 text-center text-gray-500 bg-gray-200 spa-footer">
+                    <div class="spa-footer text-center text-gray-500 py-6 bg-gray-200">
                       <!--
                   License requires that the copyright attribution remain, please do not modify.
                 -->
