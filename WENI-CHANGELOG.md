@@ -1,3 +1,7 @@
+1.7.35-rapidpro-10.0.0
+----------
+* Add get_bulk_action_labels to ContactCRUDL Group class
+
 1.7.34-rapidpro-10.0.0
 ----------
 * Update node version in Dockerfile
