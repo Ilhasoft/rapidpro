@@ -1,3 +1,7 @@
+1.7.36-rapidpro-10.0.0
+----------
+* Change AWS_S3_ADDESSING_STYLE to be a environ variable
+
 1.7.35-rapidpro-10.0.0
 ----------
 * Add get_bulk_action_labels to ContactCRUDL Group class
