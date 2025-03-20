@@ -101,7 +101,7 @@ STORAGES = {
 # settings used by django-storages (defaults to local Minio server)
 AWS_S3_REGION_NAME = AWS_REGION
 AWS_S3_ENDPOINT_URL = f"http://{_minio_host}:9000"
-AWS_S3_ADDRESSING_STYLE = os.environ.get("path", default=None)
+AWS_S3_ADDRESSING_STYLE = os.environ.get("AWS_S3_ADDRESSING_STYLE", "path")
 AWS_S3_FILE_OVERWRITE = False
 
 STORAGE_URL = f"{AWS_S3_ENDPOINT_URL}/{_bucket_prefix}-default"
