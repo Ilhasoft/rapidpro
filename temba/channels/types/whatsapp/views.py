@@ -117,7 +117,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                 for target_phone in target_waba_phone_numbers:
                     # Check if number is already registered with Cloud API
                     is_registered = target_phone.get("platform_type") == "CLOUD_API"
-                    
+
                     phone_numbers.append(
                         dict(
                             verified_name=target_phone["verified_name"],
@@ -162,7 +162,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         currency = form.cleaned_data["currency"]
         message_template_namespace = form.cleaned_data["message_template_namespace"]
         is_registered = form.cleaned_data.get("is_registered", False)
-        
+
         name = truncate(f"{number} - {verified_name}", 64)
 
         config = {
@@ -173,7 +173,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             "wa_business_id": business_id,
             "wa_message_template_namespace": message_template_namespace,
         }
-        
+
         # Only generate PIN if the number is not already registered
         if not is_registered:
             pin = str(randint(100000, 999999))
