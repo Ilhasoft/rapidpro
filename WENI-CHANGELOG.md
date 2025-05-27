@@ -1,3 +1,7 @@
+1.8.0-rapidpro-10.0.0
+----------
+* Support for creating WAC channel for previously registered numbers
+
 1.7.36-rapidpro-10.0.0
 ----------
 * Change AWS_S3_ADDESSING_STYLE to be a environ variable
