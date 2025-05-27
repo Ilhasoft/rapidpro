@@ -27,6 +27,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         business_id = forms.CharField()
         currency = forms.CharField()
         message_template_namespace = forms.CharField()
+        is_registered = forms.BooleanField(required=False)
 
         def clean(self):
             self.cleaned_data["address"] = self.cleaned_data["phone_number_id"]
@@ -114,6 +115,9 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
                 target_waba_phone_numbers = response_json.get("data", [])
                 for target_phone in target_waba_phone_numbers:
+                    # Check if number is already registered with Cloud API
+                    is_registered = target_phone.get("platform_type") == "CLOUD_API"
+
                     phone_numbers.append(
                         dict(
                             verified_name=target_phone["verified_name"],
@@ -123,6 +127,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                             currency=target_waba_details.get("currency", "USD"),
                             business_id=business_id,
                             message_template_namespace=target_waba_details["message_template_namespace"],
+                            is_registered=is_registered,
                         )
                     )
 
@@ -156,7 +161,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         business_id = form.cleaned_data["business_id"]
         currency = form.cleaned_data["currency"]
         message_template_namespace = form.cleaned_data["message_template_namespace"]
-        pin = str(randint(100000, 999999))
+        is_registered = form.cleaned_data.get("is_registered", False)
 
         name = truncate(f"{number} - {verified_name}", 64)
 
@@ -167,27 +172,31 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             "wa_currency": currency,
             "wa_business_id": business_id,
             "wa_message_template_namespace": message_template_namespace,
-            "wa_pin": pin,
         }
 
-        # assign system user to WABA
-        url = f"https://graph.facebook.com/v18.0/{waba_id}/assigned_users"
-        params = {"user": f"{settings.WHATSAPP_ADMIN_SYSTEM_USER_ID}", "tasks": ["MANAGE"]}
-        headers = {"Authorization": f"Bearer {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN}"}
+        # Only generate PIN if the number is not already registered
+        if not is_registered:
+            pin = str(randint(100000, 999999))
+            config["wa_pin"] = pin
 
-        resp = requests.post(url, params=params, headers=headers)
+            # assign system user to WABA
+            url = f"https://graph.facebook.com/v18.0/{waba_id}/assigned_users"
+            params = {"user": f"{settings.WHATSAPP_ADMIN_SYSTEM_USER_ID}", "tasks": ["MANAGE"]}
+            headers = {"Authorization": f"Bearer {settings.WHATSAPP_ADMIN_SYSTEM_USER_TOKEN}"}
 
-        if resp.status_code != 200:  # pragma: no cover
-            form._errors["__all__"] = form.error_class(
-                [
-                    _(
-                        "Unable to add system user to %s, please make sure you have business admin manager privileges "
-                        "on the Facebook business."
-                    )
-                    % waba_id
-                ]
-            )
-            return self.form_invalid(form)
+            resp = requests.post(url, params=params, headers=headers)
+
+            if resp.status_code != 200:  # pragma: no cover
+                form._errors["__all__"] = form.error_class(
+                    [
+                        _(
+                            "Unable to add system user to %s, please make sure you have business admin manager privileges "
+                            "on the Facebook business."
+                        )
+                        % waba_id
+                    ]
+                )
+                return self.form_invalid(form)
 
         self.object = Channel.create(
             org,
