@@ -47,11 +47,15 @@ class BaseSquashableCount(models.Model):
 
         num_sets = 0
         squash_over = cls.get_squash_over()
+
+        # Ensure squash_max_distinct is positive to avoid negative indexing
+        max_distinct = max(cls.squash_max_distinct, 1)
+
         distinct_sets = (
             cls.get_unsquashed()
             .values(*squash_over)
             .order_by(*squash_over)
-            .distinct(*squash_over)[: cls.squash_max_distinct]
+            .distinct(*squash_over)[:max_distinct]
         )
 
         for distinct_set in distinct_sets:
