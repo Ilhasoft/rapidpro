@@ -52,10 +52,7 @@ class BaseSquashableCount(models.Model):
         max_distinct = max(cls.squash_max_distinct, 1)
 
         distinct_sets = (
-            cls.get_unsquashed()
-            .values(*squash_over)
-            .order_by(*squash_over)
-            .distinct(*squash_over)[:max_distinct]
+            cls.get_unsquashed().values(*squash_over).order_by(*squash_over).distinct(*squash_over)[:max_distinct]
         )
 
         for distinct_set in distinct_sets:
