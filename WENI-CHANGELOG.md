@@ -1,3 +1,7 @@
+1.8.1-rapidpro-10.0.0
+----------
+* Avoid negative index error
+
 1.8.0-rapidpro-10.0.0
 ----------
 * Support for creating WAC channel for previously registered numbers
