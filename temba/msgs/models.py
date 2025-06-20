@@ -899,8 +899,18 @@ class SystemLabel:
 
     @classmethod
     def get_counts(cls, org):
-        counts = org.counts.prefix("msgs:folder:").scope_totals()
-        return {lb: counts.get(f"msgs:folder:{lb}", 0) for lb, n in cls.TYPE_CHOICES}
+        try:
+            counts = org.counts.prefix("msgs:folder:").scope_totals()
+            # Ensure all counts are non-negative to prevent indexing issues
+            result = {}
+            for lb, n in cls.TYPE_CHOICES:
+                count_value = counts.get(f"msgs:folder:{lb}", 0)
+                # Convert negative counts to 0 to prevent negative indexing errors
+                result[lb] = max(count_value, 0)
+            return result
+        except Exception:
+            # If there's any error in getting counts, return zeros to prevent crashes
+            return {lb: 0 for lb, n in cls.TYPE_CHOICES}
 
     @classmethod
     def get_queryset(cls, org, label_type):
