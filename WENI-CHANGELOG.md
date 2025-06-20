@@ -1,3 +1,7 @@
+1.8.2-rapidpro-10.0.0
+----------
+* Avoid index error in view
+
 1.8.1-rapidpro-10.0.0
 ----------
 * Avoid negative index error
