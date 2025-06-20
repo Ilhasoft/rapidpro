@@ -72,7 +72,7 @@ class SystemLabelView(SpaMixin, BaseListView):
             if isinstance(label, Label):
                 patch_queryset_count(self.object_list, label.get_visible_count)
             elif isinstance(label, str):
-                patch_queryset_count(self.object_list, lambda: counts[label])
+                patch_queryset_count(self.object_list, lambda: max(0, counts[label]))
 
         context = super().get_context_data(**kwargs)
         context["has_messages"] = (
