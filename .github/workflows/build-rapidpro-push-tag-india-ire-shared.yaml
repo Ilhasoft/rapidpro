@@ -56,7 +56,7 @@ jobs:
           username: ${{ secrets.AWS_ACCESS_KEY_ID_SHARED }}      
           password: ${{ secrets.AWS_SECRET_ACCESS_KEY_SHARED }}
 
-      - name: Build and push - Rapidpro in Shared Image
+      - name: Build and push - Rapidpro Image in Shared
         uses: docker/build-push-action@v3
         with:
           context: .
@@ -68,6 +68,21 @@ jobs:
           push: true
           tags: "${{env.IMAGE_TAG}}"
           no-cache: true
+
+      - name: Build and push - Rapidpro Varnish Image in Shared
+        uses: docker/build-push-action@v3
+        with:
+          context: ./docker
+          labels: |
+            tag=${{env.TAG}}
+            commit=${{env.COMMIT_SHA}}
+            repository=${{env.IMAGE_SOURCE_URL}}
+          file: docker/Dockerfile.varnish
+          push: true
+          tags: "${{env.IMAGE_TAG}}-varnish"
+          no-cache: true
+          build-args: |
+            BACKEND_ADDRESS=rapidpro-${{env.ENVIRONMENT}}:8000
 
       - name: Check out Kubernetes Manifests
         uses: actions/checkout@master
@@ -110,10 +125,17 @@ jobs:
                 )
                 echo "Old image version to compare: ${OLD_VERSION}<=${{env.VERSION}}"
                 if verlte "${OLD_VERSION}" "${VERSION}" || [[ ! "${OLD_VERSION}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]] ; then
-                  echo 'New configurations:'
+                  echo 'New configurations for rapidpro:'
                   new_configuration=$(
                     cat "${e}/${{ env.MANIFESTS_PATCH_TARGET }}" \
                       | jq '(..|select(.path == "/spec/template/spec/containers/0/image")?) += {value: "'"${{env.IMAGE_TAG}}"'"}'
+                  )
+                  echo "${new_configuration}"
+                  echo "${new_configuration}" > "${e}/${{ env.MANIFESTS_PATCH_TARGET }}"
+                  echo 'New configurations for varnish:'
+                  new_configuration=$(
+                    cat "${e}/${{ env.MANIFESTS_PATCH_TARGET }}" \
+                      | jq '(..|select(.path == "/spec/template/spec/containers/1/image")?) += {value: "'"${{env.IMAGE_TAG}}"'-varnish"}'
                   )
                   echo "${new_configuration}"
                   echo "${new_configuration}" > "${e}/${{ env.MANIFESTS_PATCH_TARGET }}"
