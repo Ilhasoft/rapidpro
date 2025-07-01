@@ -82,7 +82,7 @@ jobs:
           tags: "${{env.IMAGE_TAG}}-varnish"
           no-cache: true
           build-args: |
-            BACKEND_ADDRESS=rapidpro-${{env.ENVIRONMENT}}:8000
+            BACKEND_ADDRESS=rapidpro:8000
 
       - name: Check out Kubernetes Manifests
         uses: actions/checkout@master
