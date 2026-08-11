@@ -64,3 +64,8 @@ USER_RECOVER_MAX_ATTEMPTS = 5
 OLD_DESIGN_EXCLUDED_CHANNELS_CODES = ["TG", "WWC", "IG"]
 
 ACCOUNT_EMAIL_VERIFICATION = "optional"
+
+# Weni WebChat widget (Ireland)
+WENI_WEBCHAT_SCRIPT_URL = (
+    "https://weni-sp-integrations-production.s3.amazonaws.com/apptypes/wwc/3c000c32-d84a-4e89-a555-37e367b94c36/script.js"
+)

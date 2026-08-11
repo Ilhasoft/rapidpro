@@ -415,6 +415,12 @@ TEMPLATES[0]["OPTIONS"]["context_processors"] += [
 ]
 WENI_DOMAINS = {"weni": env("WENI_DOMAIN", default="weni.ai")}
 
+# Weni WebChat widget (Ireland)
+WENI_WEBCHAT_SCRIPT_URL = env(
+    "WENI_WEBCHAT_SCRIPT_URL",
+    default="https://weni-sp-integrations-production.s3.amazonaws.com/apptypes/wwc/3c000c32-d84a-4e89-a555-37e367b94c36/script.js",
+)
+
 # Exclude Weni Sidebar
 SIDEBAR_EXCLUDE_PATHS = env.list("SIDEBAR_EXCLUDE_PATHS", default=[])
 

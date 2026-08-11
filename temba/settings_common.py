@@ -145,6 +145,12 @@ MEDIA_ROOT = os.path.join(PROJECT_DIR, "../media")
 MEDIA_URL = "/media/"
 
 # -----------------------------------------------------------------------------------
+# Weni WebChat
+# -----------------------------------------------------------------------------------
+WENI_WEBCHAT_CDN_URL = "https://cdn.cloud.weni.ai/v3/webchat-latest.umd.js"
+WENI_WEBCHAT_SCRIPT_URL = ""
+
+# -----------------------------------------------------------------------------------
 # Email
 # -----------------------------------------------------------------------------------
 EMAIL_HOST = "smtp.gmail.com"
@@ -179,6 +185,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "temba.context_processors.branding",
                 "temba.context_processors.config",
+                "temba.context_processors.weni_webchat",
                 "temba.orgs.views.context_processors.org_perms_processor",
             ],
             "loaders": [
