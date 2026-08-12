@@ -15,3 +15,12 @@ def branding(request):
     Stuff our branding into the context
     """
     return dict(branding=request.branding)
+
+
+def weni_webchat(request):
+    return {
+        "weni_webchat_script_url": getattr(settings, "WENI_WEBCHAT_SCRIPT_URL", ""),
+        "weni_webchat_cdn_url": getattr(
+            settings, "WENI_WEBCHAT_CDN_URL", "https://cdn.cloud.weni.ai/v3/webchat-latest.umd.js"
+        ),
+    }
