@@ -65,7 +65,8 @@ OLD_DESIGN_EXCLUDED_CHANNELS_CODES = ["TG", "WWC", "IG"]
 
 ACCOUNT_EMAIL_VERIFICATION = "optional"
 
-# Weni WebChat widget (Ireland)
+# Weni WebChat widget (Ireland) — local dev only; production uses Rancher env vars
 WENI_WEBCHAT_SCRIPT_URL = (
     "https://weni-sp-integrations-production.s3.amazonaws.com/apptypes/wwc/79e7dcaf-56c4-4fbe-8f61-094a308ce594/script.js"
 )
+WENI_WEBCHAT_CDN_URL = "https://cdn.cloud.weni.ai/v3/webchat-latest.umd.js"

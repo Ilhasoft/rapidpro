@@ -145,9 +145,9 @@ MEDIA_ROOT = os.path.join(PROJECT_DIR, "../media")
 MEDIA_URL = "/media/"
 
 # -----------------------------------------------------------------------------------
-# Weni WebChat
+# Weni WebChat (configured via environment in production)
 # -----------------------------------------------------------------------------------
-WENI_WEBCHAT_CDN_URL = "https://cdn.cloud.weni.ai/v3/webchat-latest.umd.js"
+WENI_WEBCHAT_CDN_URL = ""
 WENI_WEBCHAT_SCRIPT_URL = ""
 
 # -----------------------------------------------------------------------------------
