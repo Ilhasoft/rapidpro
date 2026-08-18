@@ -75,6 +75,8 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             CONFIG_FB_BUSINESS_ID,
             CONFIG_FB_NAMESPACE,
             CONFIG_FB_TEMPLATE_LIST_DOMAIN,
+            CONFIG_WHATSAPP_VERSION,
+            WHATSAPP_INTERACTIVE_MIN_VERSION,
         )
 
         data = form.cleaned_data
@@ -87,6 +89,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
             CONFIG_FB_ACCESS_TOKEN: data["access_token"],
             CONFIG_FB_NAMESPACE: data["namespace"],
             CONFIG_FB_TEMPLATE_LIST_DOMAIN: "whatsapp.turn.io",
+            CONFIG_WHATSAPP_VERSION: WHATSAPP_INTERACTIVE_MIN_VERSION,
         }
 
         self.object = Channel.create(
