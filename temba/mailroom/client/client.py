@@ -67,10 +67,16 @@ class MailroomClient:
             },
         )
 
+    def android_sync(self, channel):
+        return self._request("android/sync", {"channel_id": channel.id})
+
     def contact_create(self, org, user, contact: ContactSpec) -> Contact:
         resp = self._request("contact/create", {"org_id": org.id, "user_id": user.id, "contact": asdict(contact)})
 
         return Contact.objects.get(id=resp["contact"]["id"])
+
+    def contact_deindex(self, org, contacts):
+        return self._request("contact/deindex", {"org_id": org.id, "contact_ids": [c.id for c in contacts]})
 
     def contact_export(self, org, group, query: str) -> list[int]:
         resp = self._request("contact/export", {"org_id": org.id, "group_id": group.id, "query": query})
@@ -108,7 +114,7 @@ class MailroomClient:
 
         return ParsedQuery(query=resp["query"], metadata=QueryMetadata(**resp.get("metadata", {})))
 
-    def contact_search(self, org, group, query: str, sort: str, offset=0, exclude_ids=()) -> SearchResults:
+    def contact_search(self, org, group, query: str, sort: str, offset=0, limit=50, exclude_ids=()) -> SearchResults:
         resp = self._request(
             "contact/search",
             {
@@ -118,6 +124,7 @@ class MailroomClient:
                 "query": query,
                 "sort": sort,
                 "offset": offset,
+                "limit": limit,
             },
         )
 
@@ -242,6 +249,9 @@ class MailroomClient:
             },
         )
 
+    def org_deindex(self, org):
+        return self._request("org/deindex", {"org_id": org.id})
+
     def po_export(self, org, flows, language: str):
         return self._request(
             "po/export",
@@ -322,6 +332,9 @@ class MailroomClient:
                 "ticket_ids": [t.id for t in tickets],
             },
         )
+
+    def test_errors(self, log, ret, panic):  # pragma: no cover
+        return self._request("test_errors", {"log": log, "ret": ret, "panic": panic})
 
     def _request(self, endpoint, payload=None, files=None, post=True, encode_json=False):
         if logger.isEnabledFor(logging.DEBUG):  # pragma: no cover
