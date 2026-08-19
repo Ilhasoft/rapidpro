@@ -742,7 +742,12 @@ class OrgCRUDLTest(TembaTest, CRUDLTestMixin):
         self.assertEqual({"created_on", "last_seen_on"}, system_fields)
         self.assertEqual({"\\Active", "\\Archived", "\\Blocked", "\\Stopped", "Open Tickets"}, system_groups)
         self.assertEqual(
-            {"Sample Flow - Order Status Checker", "Sample Flow - Satisfaction Survey", "Sample Flow - Simple Poll"},
+            {
+                "Sample Flow - Order Status Checker",
+                "Sample Flow - Satisfaction Survey",
+                "Sample Flow - Simple Poll",
+                "Abra para aprender a construir seu primeiro fluxo",
+            },
             sample_flows,
         )
 

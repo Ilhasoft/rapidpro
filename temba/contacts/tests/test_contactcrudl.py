@@ -13,7 +13,7 @@ from temba.airtime.models import AirtimeTransfer
 from temba.campaigns.models import Campaign, CampaignEvent, EventFire
 from temba.channels.models import ChannelEvent
 from temba.contacts.models import URN, Contact, ContactExport, ContactField
-from temba.flows.models import FlowSession, FlowStart
+from temba.flows.models import Flow, FlowSession, FlowStart
 from temba.ivr.models import Call
 from temba.locations.models import AdminBoundary
 from temba.msgs.models import Msg
@@ -1353,7 +1353,15 @@ class ContactCRUDLTest(CRUDLTestMixin, TembaTest):
         self.assertRequestDisallowed(start_url, [None, self.user, self.agent])
         response = self.assertUpdateFetch(start_url, [self.editor, self.admin], form_fields=["flow", "contact_search"])
 
-        self.assertEqual([background_flow] + sample_flows, list(response.context["form"].fields["flow"].queryset))
+        expected_flows = list(
+            self.org.flows.filter(
+                flow_type__in=(Flow.TYPE_MESSAGE, Flow.TYPE_VOICE, Flow.TYPE_BACKGROUND),
+                is_archived=False,
+                is_system=False,
+                is_active=True,
+            ).order_by("name")
+        )
+        self.assertEqual(expected_flows, list(response.context["form"].fields["flow"].queryset))
 
         # try to submit without specifying a flow
         self.assertUpdateSubmit(

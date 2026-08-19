@@ -23,6 +23,6 @@ class Migration(migrations.Migration):
 
     atomic = False
 
-    dependencies = [("tickets", "0070_update_triggers")]
+    dependencies = [("tickets", "0070_update_triggers"), ("orgs", "0156_itemcount")]
 
     operations = [migrations.RunPython(backfill_item_counts, migrations.RunPython.noop)]
