@@ -81,9 +81,7 @@ class SSOAdapterTest(TembaTest):
             first_name="Test",
             last_name="User",
         )
-        EmailAddress.objects.update_or_create(
-            user=user, email=user.email, defaults={"verified": True, "primary": True}
-        )
+        EmailAddress.objects.update_or_create(user=user, email=user.email, defaults={"verified": True, "primary": True})
 
         request = self._make_request()
         sociallogin = self._make_sociallogin("verified@unicef.org")
