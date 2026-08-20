@@ -11,6 +11,8 @@ from temba.channels.types.turn.type import (
     CONFIG_FB_BUSINESS_ID,
     CONFIG_FB_NAMESPACE,
     CONFIG_FB_TEMPLATE_LIST_DOMAIN,
+    CONFIG_WHATSAPP_VERSION,
+    WHATSAPP_INTERACTIVE_MIN_VERSION,
 )
 from temba.request_logs.models import HTTPLog
 from temba.templates.models import TemplateTranslation
@@ -82,6 +84,7 @@ class TurnTypeTest(CRUDLTestMixin, TembaTest):
 
         self.assertEqual("abc123", channel.config[Channel.CONFIG_AUTH_TOKEN])
         self.assertEqual("https://whatsapp.turn.io", channel.config[Channel.CONFIG_BASE_URL])
+        self.assertEqual(WHATSAPP_INTERACTIVE_MIN_VERSION, channel.config[CONFIG_WHATSAPP_VERSION])
 
         self.assertEqual("+250788123123", channel.address)
         self.assertEqual("RW", channel.country)
