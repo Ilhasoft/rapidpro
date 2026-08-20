@@ -41,8 +41,8 @@ class SSOAdapterTest(TembaTest):
         return request
 
     def _run_pre_social_login(self, request, sociallogin):
-        def connect(request, user):
-            sociallogin.user = user
+        def connect(social_login, request, user, *args, **kwargs):
+            social_login.user = user
 
         with patch.object(SocialLogin, "connect", connect):
             self.adapter.pre_social_login(request, sociallogin)
