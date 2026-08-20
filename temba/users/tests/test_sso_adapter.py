@@ -40,6 +40,13 @@ class SSOAdapterTest(TembaTest):
         request._messages = FallbackStorage(request)
         return request
 
+    def _run_pre_social_login(self, request, sociallogin):
+        def connect(request, user):
+            sociallogin.user = user
+
+        with patch.object(SocialLogin, "connect", connect):
+            self.adapter.pre_social_login(request, sociallogin)
+
     def test_extract_email_from_upn(self):
         sociallogin = self._make_sociallogin("", upn="user@unicef.org")
         self.assertEqual("user@unicef.org", TembaSocialAccountAdapter.extract_email(sociallogin))
@@ -56,7 +63,7 @@ class SSOAdapterTest(TembaTest):
         request = self._make_request()
         sociallogin = self._make_sociallogin("user@unicef.org")
 
-        self.adapter.pre_social_login(request, sociallogin)
+        self._run_pre_social_login(request, sociallogin)
 
         self.assertEqual(user, sociallogin.user)
         self.assertTrue(EmailAddress.objects.get(user=user).verified)
@@ -73,7 +80,7 @@ class SSOAdapterTest(TembaTest):
         request = self._make_request()
         sociallogin = self._make_sociallogin("user@unicef.org")
 
-        self.adapter.pre_social_login(request, sociallogin)
+        self._run_pre_social_login(request, sociallogin)
 
         self.assertEqual(user, sociallogin.user)
         self.assertTrue(EmailAddress.objects.get(user=user).verified)
@@ -90,7 +97,7 @@ class SSOAdapterTest(TembaTest):
         request = self._make_request()
         sociallogin = self._make_sociallogin("verified@unicef.org")
 
-        self.adapter.pre_social_login(request, sociallogin)
+        self._run_pre_social_login(request, sociallogin)
 
         self.assertEqual(user, sociallogin.user)
         self.assertTrue(EmailAddress.objects.get(user=user).verified)
