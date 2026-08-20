@@ -7,11 +7,12 @@ from allauth.socialaccount.models import SocialAccount, SocialLogin
 
 from django.conf import settings
 from django.contrib.messages import get_messages
+from django.contrib.messages.storage.fallback import FallbackStorage
 from django.test import RequestFactory
 
 from temba.orgs.models import Invitation, OrgRole
 from temba.tests.base import TembaTest
-from temba.users.adapter import TembaSocialAccountAdapter
+from temba.users.adapter import TembaAccountAdapter, TembaSocialAccountAdapter
 from temba.users.models import User
 
 
@@ -20,9 +21,11 @@ class SSOAdapterTest(TembaTest):
         super().setUp()
         self.factory = RequestFactory()
         self.adapter = TembaSocialAccountAdapter()
+        self.account_adapter = TembaAccountAdapter()
 
     def _make_sociallogin(self, email, **extra_data):
         sociallogin = SocialLogin()
+        sociallogin.user = User()
         sociallogin.account = SocialAccount(
             provider="openid_connect",
             uid="uid-test",
@@ -34,6 +37,7 @@ class SSOAdapterTest(TembaTest):
         request = self.factory.get("/accounts/login/")
         request.session = self.client.session
         request.branding = settings.BRAND
+        request._messages = FallbackStorage(request)
         return request
 
     def test_extract_email_from_upn(self):
@@ -113,10 +117,10 @@ class SSOAdapterTest(TembaTest):
 
         request = self._make_request()
         request.session["invite_secret"] = invitation.secret
-        self.adapter.request = request
+        self.account_adapter.request = request
 
         with patch.object(DefaultAccountAdapter, "post_login", return_value=None):
-            self.adapter.post_login(
+            self.account_adapter.post_login(
                 request,
                 user,
                 email_verification=None,
@@ -136,10 +140,10 @@ class SSOAdapterTest(TembaTest):
 
         request = self._make_request()
         request.session["invite_secret"] = invitation.secret
-        self.adapter.request = request
+        self.account_adapter.request = request
 
         with patch.object(DefaultAccountAdapter, "post_login", return_value=None):
-            self.adapter.post_login(
+            self.account_adapter.post_login(
                 request,
                 user,
                 email_verification=None,
@@ -155,3 +159,26 @@ class SSOAdapterTest(TembaTest):
 
         messages = [str(m.message) for m in get_messages(request)]
         self.assertTrue(any("other@unicef.org" in message for message in messages))
+
+    def test_social_post_login_delegates_to_account_adapter(self):
+        invitation = Invitation.create(self.org, self.admin, "user@unicef.org", OrgRole.EDITOR)
+        user = User.create("user@unicef.org", "Test", "User", password=self.default_password)
+
+        request = self._make_request()
+        request.session["invite_secret"] = invitation.secret
+        self.adapter.request = request
+
+        with patch.object(TembaAccountAdapter, "post_login", return_value=None) as account_post_login:
+            self.adapter.post_login(
+                request,
+                user,
+                email_verification=None,
+                signal_kwargs={},
+                email=user.email,
+                signup=False,
+                redirect_url="/org/choose/",
+            )
+
+        account_post_login.assert_called_once()
+        invitation.refresh_from_db()
+        self.assertFalse(invitation.is_active)

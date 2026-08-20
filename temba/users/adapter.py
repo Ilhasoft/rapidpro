@@ -34,7 +34,22 @@ class InviteAdapterMixin:
                     invite.accept(user)
                     switch_to_org(request, user)
 
-        return super().post_login(
+        # DefaultSocialAccountAdapter does not inherit DefaultAccountAdapter, so delegate
+        # invite handling here and continue login via the account adapter.
+        if isinstance(self, DefaultAccountAdapter):
+            return super().post_login(
+                request,
+                user,
+                email_verification=email_verification,
+                signal_kwargs=signal_kwargs,
+                email=email,
+                signup=signup,
+                redirect_url=redirect_url,
+            )
+
+        from allauth.account.adapter import get_adapter as get_account_adapter
+
+        return get_account_adapter().post_login(
             request,
             user,
             email_verification=email_verification,
@@ -109,7 +124,8 @@ class TembaSocialAccountAdapter(InviteAdapterMixin, DefaultSocialAccountAdapter)
         if not sociallogin.email_addresses:
             sociallogin.email_addresses = [EmailAddress(email=email, verified=True, primary=True)]
 
-        if not sociallogin.is_existing:
+        sociallogin_user = getattr(sociallogin, "user", None)
+        if sociallogin_user is None or sociallogin_user.pk is None:
             user = User.get_by_email(email)
             if user:
                 sociallogin.connect(request, user)
