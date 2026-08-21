@@ -24,7 +24,7 @@ class InviteAdapterMixin:
             invite = Invitation.objects.filter(secret=secret, is_active=True).first()
             if invite:
                 # this can happen if a SSO with a different email address is used
-                if user.email != invite.email:  # pragma: no cover
+                if user.email.lower() != invite.email.lower():
                     messages.add_message(
                         self.request,
                         messages.WARNING,
@@ -34,7 +34,22 @@ class InviteAdapterMixin:
                     invite.accept(user)
                     switch_to_org(request, user)
 
-        return super().post_login(
+        # DefaultSocialAccountAdapter does not inherit DefaultAccountAdapter, so delegate
+        # invite handling here and continue login via the account adapter.
+        if isinstance(self, DefaultAccountAdapter):
+            return super().post_login(
+                request,
+                user,
+                email_verification=email_verification,
+                signal_kwargs=signal_kwargs,
+                email=email,
+                signup=signup,
+                redirect_url=redirect_url,
+            )
+
+        from allauth.account.adapter import get_adapter as get_account_adapter
+
+        return get_account_adapter().post_login(
             request,
             user,
             email_verification=email_verification,
@@ -65,12 +80,30 @@ class TembaAccountAdapter(InviteAdapterMixin, DefaultAccountAdapter):
         sender.send([email], template_prefix, context)
 
 
-class TembaSocialAccountAdapter(InviteAdapterMixin, DefaultSocialAccountAdapter):  # pragma: no cover
+class TembaSocialAccountAdapter(InviteAdapterMixin, DefaultSocialAccountAdapter):
+
+    @staticmethod
+    def extract_email(sociallogin):
+        if not hasattr(sociallogin, "account") or not hasattr(sociallogin.account, "extra_data"):
+            return None
+
+        extra_data = sociallogin.account.extra_data
+        return extra_data.get("email") or extra_data.get("upn") or extra_data.get("preferred_username")
+
+    @staticmethod
+    def mark_email_verified(user, email):
+        address = EmailAddress.objects.filter(user=user, email__iexact=email).first()
+        if address:
+            if not address.verified or not address.primary:
+                address.verified = True
+                address.primary = True
+                address.save(update_fields=["verified", "primary"])
+        else:
+            EmailAddress.objects.create(user=user, email=user.email, verified=True, primary=True)
 
     def populate_user(self, request, sociallogin, data):
         user = super().populate_user(request, sociallogin, data)
-        extra = sociallogin.account.extra_data
-        email = extra.get("email") or extra.get("preferred_username") or extra.get("upn")
+        email = self.extract_email(sociallogin)
         if not user.email:
             user.email = email
         if "email" not in data and email:
@@ -79,36 +112,24 @@ class TembaSocialAccountAdapter(InviteAdapterMixin, DefaultSocialAccountAdapter)
 
     def save_user(self, request, sociallogin, form=None):
         user = super().save_user(request, sociallogin, form)
-        email = user.email
-        if email:
-            EmailAddress.objects.update_or_create(
-                user=user,
-                email=email,
-                defaults={"verified": True, "primary": True},
-            )
+        if user.email:
+            self.mark_email_verified(user, user.email)
         return user
 
     def pre_social_login(self, request, sociallogin):
-        # extract email from various possible fields
-        email = None
-        if hasattr(sociallogin, "account") and hasattr(sociallogin.account, "extra_data"):
-            extra_data = sociallogin.account.extra_data
-            # check multiple possible email fields
-            email = (
-                extra_data.get("email")
-                or extra_data.get("upn")  # azure ad uses upn
-                or extra_data.get("preferred_username")
-            )
+        email = self.extract_email(sociallogin)
+        if not email:
+            return
 
-        # if we have an email but no email_addresses set, create one
-        if email and not sociallogin.email_addresses:
+        if not sociallogin.email_addresses:
             sociallogin.email_addresses = [EmailAddress(email=email, verified=True, primary=True)]
 
-        # if user exists, connect the social account
-        if email and not sociallogin.is_existing:
-            user = User.objects.filter(email=email).first()
+        sociallogin_user = getattr(sociallogin, "user", None)
+        if sociallogin_user is None or sociallogin_user.pk is None:
+            user = User.get_by_email(email)
             if user:
                 sociallogin.connect(request, user)
+                self.mark_email_verified(user, email)
 
 
 @receiver(social_account_added)
