@@ -1,3 +1,7 @@
+Unreleased
+----------
+* Fix Instagram reconnect: use Facebook OAuth redirect instead of FB.login popup, and return a clear error when the linked page is missing from the token (no 500)
+
 1.8.8-rapidpro-26.0.0
 ----------
 * Make Turn.io available for all org
