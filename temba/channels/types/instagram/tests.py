@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.test import override_settings
 from django.urls import reverse
+from django.utils.encoding import force_str
 
 from temba.tests import MockResponse, TembaTest
 from temba.utils import json
@@ -9,6 +10,7 @@ from temba.utils.text import truncate
 
 from ...models import Channel
 from .type import InstagramType
+from .views import PAGE_PERMISSION_ERROR
 
 
 class InstagramTypeTest(TembaTest):
@@ -391,6 +393,8 @@ class InstagramTypeTest(TembaTest):
 
         response = self.client.get(url)
         self.assertContains(response, "Reconnect Instagram Business Account")
+        self.assertContains(response, "https://www.facebook.com/v22.0/dialog/oauth")
+        self.assertNotContains(response, "FB.login")
         self.assertEqual(response.context["facebook_app_id"], "FB_APP_ID")
         self.assertEqual(response.context["refresh_url"], url)
         self.assertFalse(response.context["error_connect"])
@@ -432,6 +436,87 @@ class InstagramTypeTest(TembaTest):
             data={"subscribed_fields": "messages,messaging_postbacks"},
             params={"access_token": self.long_life_page_token},
         )
+
+    @override_settings(FACEBOOK_APPLICATION_ID="FB_APP_ID", FACEBOOK_APPLICATION_SECRET="FB_APP_SECRET")
+    @patch("requests.post")
+    @patch("requests.get")
+    def test_refresh_token_without_page_permission(self, mock_get, mock_post):
+        token = "x" * 200
+        url = reverse("channels.types.instagram.refresh_token", args=(self.channel.uuid,))
+
+        self.login(self.admin)
+
+        mock_get.side_effect = [
+            MockResponse(200, json.dumps({"data": {"is_valid": True}})),
+            MockResponse(200, json.dumps({"access_token": self.long_life_page_token})),
+            MockResponse(200, json.dumps({"data": []})),
+            MockResponse(200, json.dumps({"data": {"is_valid": True}})),
+        ]
+
+        response = self.client.get(url)
+        post_data = response.context["form"].initial
+        post_data["fb_user_id"] = "098765"
+        post_data["user_access_token"] = token
+
+        response = self.client.post(url, post_data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            force_str(response.context["form"].errors["__all__"][0]),
+            force_str(PAGE_PERMISSION_ERROR),
+        )
+        self.assertEqual(force_str(response.context["reconnect_error"]), force_str(PAGE_PERMISSION_ERROR))
+        mock_post.assert_not_called()
+
+    @override_settings(FACEBOOK_APPLICATION_ID="FB_APP_ID", FACEBOOK_APPLICATION_SECRET="FB_APP_SECRET")
+    @patch("requests.post")
+    @patch("requests.get")
+    def test_refresh_token_paginates_accounts(self, mock_get, mock_post):
+        token = "x" * 200
+        url = reverse("channels.types.instagram.refresh_token", args=(self.channel.uuid,))
+        next_url = "https://graph.facebook.com/v22.0/098765/accounts?after=cursor"
+
+        self.login(self.admin)
+        mock_post.return_value = MockResponse(200, json.dumps({"success": True}))
+
+        mock_get.side_effect = [
+            MockResponse(200, json.dumps({"data": {"is_valid": True}})),
+            MockResponse(200, json.dumps({"access_token": self.long_life_page_token})),
+            MockResponse(
+                200,
+                json.dumps(
+                    {
+                        "data": [{"id": "1", "access_token": "other", "name": "Other"}],
+                        "paging": {"next": next_url},
+                    }
+                ),
+            ),
+            MockResponse(
+                200,
+                json.dumps(
+                    {
+                        "data": [
+                            {
+                                "name": "Temba",
+                                "id": "123456",
+                                "access_token": self.long_life_page_token,
+                            }
+                        ]
+                    }
+                ),
+            ),
+        ]
+
+        response = self.client.get(url)
+        post_data = response.context["form"].initial
+        post_data["fb_user_id"] = "098765"
+        post_data["user_access_token"] = token
+
+        response = self.client.post(url, post_data, follow=True)
+
+        channel = Channel.objects.get(address="019283", channel_type="IG")
+        self.assertEqual(channel.config[Channel.CONFIG_AUTH_TOKEN], self.long_life_page_token)
+        mock_get.assert_any_call(next_url, params={})
 
     def test_get_error_ref_url(self):
         self.assertEqual(
