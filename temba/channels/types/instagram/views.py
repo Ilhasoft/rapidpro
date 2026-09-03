@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 PAGE_PERMISSION_ERROR = _(
     "This Facebook account doesn't have permission on the linked page. Reconnect as a page admin and select that page"
 )
+RECONNECT_OAUTH_STATE_PLACEHOLDER = "00000000-0000-0000-0000-000000000000"
 
 
 def get_page_access_token(fb_user_id, page_id, long_lived_auth_token):
@@ -137,6 +138,11 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         context = super().get_context_data(**kwargs)
         context["claim_url"] = reverse("channels.types.instagram.claim")
         context["facebook_app_id"] = settings.FACEBOOK_APPLICATION_ID
+        context["reconnect_oauth_placeholder"] = RECONNECT_OAUTH_STATE_PLACEHOLDER
+        context["reconnect_token_url_template"] = reverse(
+            "channels.types.instagram.refresh_token",
+            args=(RECONNECT_OAUTH_STATE_PLACEHOLDER,),
+        )
 
         context["facebook_login_instagram_config_id"] = settings.FACEBOOK_LOGIN_INSTAGRAM_CONFIG_ID
 
@@ -193,6 +199,8 @@ class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, ModalFormMixin, SmartMode
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["refresh_url"] = reverse("channels.types.instagram.refresh_token", args=(self.object.uuid,))
+        context["oauth_redirect_path"] = reverse("channels.types.instagram.claim")
+        context["channel_uuid"] = str(self.object.uuid)
 
         app_id = settings.FACEBOOK_APPLICATION_ID
         app_secret = settings.FACEBOOK_APPLICATION_SECRET
