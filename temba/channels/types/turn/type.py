@@ -18,6 +18,10 @@ CONFIG_FB_ACCESS_TOKEN = "fb_access_token"
 CONFIG_FB_NAMESPACE = "fb_namespace"
 CONFIG_FB_TEMPLATE_LIST_DOMAIN = "fb_template_list_domain"
 CONFIG_FB_TEMPLATE_API_VERSION = "fb_template_list_domain_api_version"
+CONFIG_WHATSAPP_VERSION = "version"
+
+# Minimum version required by Courier 9.2.x TRN handler to send interactive quick replies.
+WHATSAPP_INTERACTIVE_MIN_VERSION = "v2.35.2"
 
 TEMPLATE_LIST_URL = "https://%s/%s/%s/message_templates"
 
