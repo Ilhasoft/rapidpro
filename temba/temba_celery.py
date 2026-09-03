@@ -21,7 +21,6 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 app.autodiscover_tasks(
     (
-        "temba.channels.types.twitter",
         "temba.channels.types.whatsapp_legacy",
         "temba.channels.types.turn",
         "temba.channels.types.teams",

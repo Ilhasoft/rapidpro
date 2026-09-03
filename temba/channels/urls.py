@@ -3,6 +3,7 @@ from django.urls import re_path
 
 from temba.utils.views import CourierURLHandler
 
+from .android.views import register, sync
 from .models import Channel
 from .views import ChannelCRUDL, ChannelLogCRUDL
 
@@ -19,13 +20,16 @@ for ch_type in Channel.get_types():
         type_urls.append(re_path("^%s/" % ch_type.slug, include(channel_urls)))
 
     # register a Courier placeholder URL which will error if ever accessed directly
-    courier_urls.append(
-        re_path(ch_type.courier_url, CourierURLHandler.as_view(), name="courier.%s" % ch_type.code.lower())
-    )
+    if ch_type.courier_url:
+        courier_urls.append(
+            re_path(ch_type.courier_url, CourierURLHandler.as_view(), name="courier.%s" % ch_type.code.lower())
+        )
 
 
 urlpatterns = [
     re_path(r"^channels/", include(ChannelCRUDL().as_urlpatterns() + ChannelLogCRUDL().as_urlpatterns())),
     re_path(r"^c/", include(courier_urls)),
     re_path(r"^channels/types/", include(type_urls)),
+    re_path(r"^relayers/relayer/sync/(\d+)/$", sync, {}, "sync"),
+    re_path(r"^relayers/relayer/register/$", register, {}, "register"),
 ]

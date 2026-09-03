@@ -5,10 +5,10 @@ from django.utils.translation import gettext_lazy as _
 
 from temba.channels.models import Channel
 from temba.channels.views import ChannelTypeMixin
-from temba.orgs.views import OrgPermsMixin
+from temba.orgs.views.mixins import OrgPermsMixin
 from temba.request_logs.models import HTTPLog
 from temba.templates.models import TemplateTranslation
-from temba.utils.views import ContentMenuMixin, PostOnlyMixin
+from temba.utils.views.mixins import ContextMenuMixin, PostOnlyMixin
 
 from .tasks import refresh_whatsapp_contacts
 
@@ -33,7 +33,7 @@ class RefreshView(ChannelTypeMixin, PostOnlyMixin, OrgPermsMixin, SmartUpdateVie
         return obj
 
 
-class TemplatesView(ChannelTypeMixin, ContentMenuMixin, OrgPermsMixin, SmartReadView):
+class TemplatesView(ChannelTypeMixin, ContextMenuMixin, OrgPermsMixin, SmartReadView):
     """
     Displays a simple table of all the templates synced on this whatsapp channel
     """
@@ -44,7 +44,7 @@ class TemplatesView(ChannelTypeMixin, ContentMenuMixin, OrgPermsMixin, SmartRead
     slug_url_kwarg = "uuid"
     template_name = "utils/whatsapp/templates.html"
 
-    def build_content_menu(self, menu):
+    def build_context_menu(self, menu):
         obj = self.get_object()
 
         menu.add_link(_("Sync Logs"), reverse(f"channels.types.{obj.type.slug}.sync_logs", args=[obj.uuid]))
@@ -63,7 +63,7 @@ class TemplatesView(ChannelTypeMixin, ContentMenuMixin, OrgPermsMixin, SmartRead
         return f"/settings/channels/{self.get_object().uuid}"
 
 
-class SyncLogsView(ChannelTypeMixin, ContentMenuMixin, OrgPermsMixin, SmartReadView):
+class SyncLogsView(ChannelTypeMixin, ContextMenuMixin, OrgPermsMixin, SmartReadView):
     """
     Displays a simple table of the WhatsApp Templates Synced requests for this channel
     """
@@ -74,7 +74,7 @@ class SyncLogsView(ChannelTypeMixin, ContentMenuMixin, OrgPermsMixin, SmartReadV
     slug_url_kwarg = "uuid"
     template_name = "utils/whatsapp/sync_logs.html"
 
-    def build_content_menu(self, menu):
+    def build_context_menu(self, menu):
         obj = self.get_object()
 
         menu.add_link(_("Message Templates"), reverse(f"channels.types.{obj.type.slug}.templates", args=[obj.uuid]))
