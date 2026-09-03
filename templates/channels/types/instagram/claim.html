@@ -88,6 +88,13 @@
       }, {});
 
       var accessToken = result.long_lived_token || result.access_token;
+      var reconnectUuid = result.state || "";
+      var uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (accessToken && uuidPattern.test(reconnectUuid)) {
+        var reconnectPath = "{{ reconnect_token_url_template }}".replace("{{ reconnect_oauth_placeholder }}", reconnectUuid);
+        location.replace(window.location.origin + reconnectPath + window.location.hash);
+        return;
+      }
       if (accessToken) {
         getFBPages(accessToken);
       }
