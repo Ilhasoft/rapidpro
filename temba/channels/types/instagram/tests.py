@@ -454,6 +454,8 @@ class InstagramTypeTest(TembaTest):
             MockResponse(200, json.dumps({"data": {"is_valid": True}})),
             MockResponse(200, json.dumps({"access_token": self.long_life_page_token})),
             MockResponse(200, json.dumps({"data": []})),
+            MockResponse(200, json.dumps({"data": []})),
+            MockResponse(400, json.dumps({"error": {"message": "unsupported get request"}})),
             MockResponse(200, json.dumps({"data": {"is_valid": True}})),
         ]
 
@@ -521,6 +523,52 @@ class InstagramTypeTest(TembaTest):
         channel = Channel.objects.get(address="019283", channel_type="IG")
         self.assertEqual(channel.config[Channel.CONFIG_AUTH_TOKEN], self.long_life_page_token)
         mock_get.assert_any_call(next_url, params={})
+
+    @override_settings(FACEBOOK_APPLICATION_ID="FB_APP_ID", FACEBOOK_APPLICATION_SECRET="FB_APP_SECRET")
+    @patch("requests.post")
+    @patch("requests.get")
+    def test_refresh_token_uses_direct_page_lookup(self, mock_get, mock_post):
+        token = "x" * 200
+        url = reverse("channels.types.instagram.refresh_token", args=(self.channel.uuid,))
+
+        self.login(self.admin)
+        mock_post.return_value = MockResponse(200, json.dumps({"success": True}))
+        mock_get.side_effect = [
+            MockResponse(200, json.dumps({"data": {"is_valid": True}})),
+            MockResponse(200, json.dumps({"access_token": f"long-life-user-{token}"})),
+            MockResponse(200, json.dumps({"data": []})),
+            MockResponse(200, json.dumps({"data": []})),
+            MockResponse(
+                200,
+                json.dumps(
+                    {
+                        "id": "123456",
+                        "name": "Temba",
+                        "access_token": self.long_life_page_token,
+                    }
+                ),
+            ),
+        ]
+
+        response = self.client.get(url)
+        post_data = response.context["form"].initial
+        post_data["fb_user_id"] = "098765"
+        post_data["user_access_token"] = token
+
+        response = self.client.post(url, post_data, follow=True)
+
+        channel = Channel.objects.get(address="019283", channel_type="IG")
+        self.assertEqual(channel.config[Channel.CONFIG_AUTH_TOKEN], self.long_life_page_token)
+        self.assertEqual(channel.config[Channel.CONFIG_PAGE_NAME], "Temba")
+        mock_get.assert_any_call(
+            "https://graph.facebook.com/v22.0/123456",
+            params={"fields": "id,name,access_token", "access_token": f"long-life-user-{token}"},
+        )
+        mock_post.assert_any_call(
+            "https://graph.facebook.com/v22.0/123456/subscribed_apps",
+            data={"subscribed_fields": "messages,messaging_postbacks"},
+            params={"access_token": self.long_life_page_token},
+        )
 
     def test_get_error_ref_url(self):
         self.assertEqual(
