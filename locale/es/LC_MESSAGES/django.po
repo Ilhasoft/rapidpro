@@ -1109,6 +1109,12 @@ msgstr ""
 msgid "Sorry your Instagram channel could not be connected. Please try again"
 msgstr ""
 
+msgid "This Facebook account doesn't have permission on the linked page. Reconnect as a page admin and select that page"
+msgstr "Esta cuenta de Facebook no tiene permiso en la página vinculada. Reconecta como administrador de la página y selecciona esa página"
+
+msgid "Instagram channel couldn't be reconnected due to a technical issue"
+msgstr "No se pudo reconectar el canal de Instagram debido a un problema técnico"
+
 #, python-format
 msgid "Connect your %(link)s instance that you have already connected to an SMSC."
 msgstr "Conecte su instancia %(link)s que ya ha conectado a un SMSC."

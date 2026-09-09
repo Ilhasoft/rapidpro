@@ -5,16 +5,88 @@ from smartmin.views import SmartFormView, SmartModelActionView
 
 from django import forms
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from temba.orgs.views.mixins import OrgObjPermsMixin
 from temba.utils.text import truncate
+from temba.utils.views.mixins import ModalFormMixin
 
 from ...models import Channel
 from ...views import ChannelTypeMixin, ClaimViewMixin
 
 logger = logging.getLogger(__name__)
+
+PAGE_PERMISSION_ERROR = _(
+    "This Facebook account doesn't have permission on the linked page. Reconnect as a page admin and select that page"
+)
+RECONNECT_OAUTH_STATE_PLACEHOLDER = "00000000-0000-0000-0000-000000000000"
+
+
+def _page_token_from_payload(page, page_id):
+    if page and str(page.get("id")) == str(page_id) and page.get("access_token"):
+        return page["access_token"], page.get("name") or str(page_id)
+    return None
+
+
+def _iter_managed_pages(url, params):
+    while url:
+        response = requests.get(url, params=params)
+        if response.status_code != 200:
+            logger.warning(
+                "Failed to list Instagram pages: url=%s status=%s body=%s",
+                url,
+                response.status_code,
+                response.text,
+            )
+            return
+
+        response_json = response.json()
+        for page in response_json.get("data", []):
+            yield page
+
+        url = response_json.get("paging", {}).get("next")
+        params = {}
+
+
+def get_page_access_token(fb_user_id, page_id, long_lived_auth_token):
+    """
+    Resolve the Page access token for a known page.
+
+    GET /{user}/accounts omits Pages owned by a Meta Business unless the token
+    includes business_management. Reconnect already knows page_id, so fall back
+    to GET /{page-id}?fields=access_token, which still works for page admins.
+    """
+    page_id = str(page_id)
+    list_params = {"access_token": long_lived_auth_token}
+
+    account_urls = [f"https://graph.facebook.com/v22.0/{fb_user_id}/accounts"]
+    if str(fb_user_id) != "me":
+        account_urls.append("https://graph.facebook.com/v22.0/me/accounts")
+
+    for url in account_urls:
+        for page in _iter_managed_pages(url, dict(list_params)):
+            found = _page_token_from_payload(page, page_id)
+            if found:
+                return found
+
+    url = f"https://graph.facebook.com/v22.0/{page_id}"
+    params = {"fields": "id,name,access_token", "access_token": long_lived_auth_token}
+    response = requests.get(url, params=params)
+    if response.status_code == 200:
+        found = _page_token_from_payload(response.json(), page_id)
+        if found:
+            return found
+
+    logger.warning(
+        "Instagram page token lookup failed: page_id=%s fb_user_id=%s status=%s body=%s",
+        page_id,
+        fb_user_id,
+        response.status_code,
+        response.text,
+    )
+    raise Exception("Empty page access token!")
 
 
 class ClaimView(ClaimViewMixin, SmartFormView):
@@ -32,7 +104,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
                 app_id = settings.FACEBOOK_APPLICATION_ID
                 app_secret = settings.FACEBOOK_APPLICATION_SECRET
 
-                url = "https://graph.facebook.com/v18.0/debug_token"
+                url = "https://graph.facebook.com/v22.0/debug_token"
                 params = {"access_token": f"{app_id}|{app_secret}", "input_token": auth_token}
 
                 response = requests.get(url, params=params)
@@ -65,38 +137,9 @@ class ClaimView(ClaimViewMixin, SmartFormView):
 
                     auth_token = long_lived_auth_token
 
-                url = f"https://graph.facebook.com/v18.0/{fb_user_id}/accounts"
-                params = {"access_token": auth_token}
+                page_access_token, name = get_page_access_token(fb_user_id, page_id, auth_token)
 
-                page_access_token = ""
-
-                while True:
-                    response = requests.get(url, params=params)
-                    response_json = response.json()
-
-                    if response.status_code != 200:  # pragma: no cover
-                        raise Exception("Failed to get a page long lived token")
-
-                    for page in response_json.get("data", []):
-                        if page["id"] == str(page_id):
-                            page_access_token = page["access_token"]
-                            name = page["name"]
-                            break
-
-                    if page_access_token != "":
-                        break
-
-                    next_ = response_json["paging"].get("next", None)  # pragma: needs cover
-                    if next_:  # pragma: needs cover
-                        url = next_
-
-                    else:
-                        break  # pragma: needs cover
-
-                if page_access_token == "":  # pragma: no cover
-                    raise Exception("Empty page access token!")
-
-                url = f"https://graph.facebook.com/v18.0/{page_id}/subscribed_apps"
+                url = f"https://graph.facebook.com/v22.0/{page_id}/subscribed_apps"
                 params = {"access_token": page_access_token}
                 data = {"subscribed_fields": "messages,messaging_postbacks"}
 
@@ -133,6 +176,11 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         context = super().get_context_data(**kwargs)
         context["claim_url"] = reverse("channels.types.instagram.claim")
         context["facebook_app_id"] = settings.FACEBOOK_APPLICATION_ID
+        context["reconnect_oauth_placeholder"] = RECONNECT_OAUTH_STATE_PLACEHOLDER
+        context["reconnect_token_url_template"] = reverse(
+            "channels.types.instagram.refresh_token",
+            args=(RECONNECT_OAUTH_STATE_PLACEHOLDER,),
+        )
 
         context["facebook_login_instagram_config_id"] = settings.FACEBOOK_LOGIN_INSTAGRAM_CONFIG_ID
 
@@ -167,7 +215,7 @@ class ClaimView(ClaimViewMixin, SmartFormView):
         return super().form_valid(form)
 
 
-class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, SmartModelActionView, SmartFormView):
+class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, ModalFormMixin, SmartModelActionView):
     class Form(forms.Form):
         user_access_token = forms.CharField(min_length=32, required=True, help_text=_("The User Access Token"))
         fb_user_id = forms.CharField(
@@ -189,6 +237,8 @@ class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, SmartModelActionView, Sma
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["refresh_url"] = reverse("channels.types.instagram.refresh_token", args=(self.object.uuid,))
+        context["oauth_redirect_path"] = reverse("channels.types.instagram.claim")
+        context["channel_uuid"] = str(self.object.uuid)
 
         app_id = settings.FACEBOOK_APPLICATION_ID
         app_secret = settings.FACEBOOK_APPLICATION_SECRET
@@ -197,7 +247,7 @@ class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, SmartModelActionView, Sma
 
         context["facebook_login_instagram_config_id"] = settings.FACEBOOK_LOGIN_INSTAGRAM_CONFIG_ID
 
-        url = "https://graph.facebook.com/v18.0/debug_token"
+        url = "https://graph.facebook.com/v22.0/debug_token"
         params = {
             "access_token": f"{app_id}|{app_secret}",
             "input_token": self.object.config[Channel.CONFIG_AUTH_TOKEN],
@@ -213,6 +263,9 @@ class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, SmartModelActionView, Sma
                 error_connect = True
 
         context["error_connect"] = error_connect
+
+        non_field_errors = context["form"].non_field_errors()
+        context["reconnect_error"] = non_field_errors[0] if non_field_errors else None
 
         return context
 
@@ -246,49 +299,44 @@ class RefreshToken(ChannelTypeMixin, OrgObjPermsMixin, SmartModelActionView, Sma
         response = requests.get(url, params=params)
 
         if response.status_code != 200:  # pragma: no cover
-            raise Exception("Failed to get a user long lived token")
+            logger.error(
+                "Failed to get Instagram user long lived token: status=%s body=%s",
+                response.status_code,
+                response.text,
+            )
+            raise ValidationError(_("Instagram channel couldn't be reconnected due to a technical issue"))
 
         long_lived_auth_token = response.json().get("access_token", "")
 
         if long_lived_auth_token == "":  # pragma: no cover
-            raise Exception("Empty user access token!")
+            raise ValidationError(_("Instagram channel couldn't be reconnected due to a technical issue"))
 
-        url = f"https://graph.facebook.com/v18.0/{fb_user_id}/accounts"
-        params = {"access_token": long_lived_auth_token}
+        try:
+            page_access_token, name = get_page_access_token(fb_user_id, page_id, long_lived_auth_token)
+        except Exception as e:
+            if str(e) == "Empty page access token!":
+                logger.warning(
+                    "Instagram reconnect did not find linked page %s for Facebook user %s",
+                    page_id,
+                    fb_user_id,
+                )
+                raise ValidationError(PAGE_PERMISSION_ERROR)
+            logger.error("Unable to refresh Instagram channel token with error: %s", str(e), exc_info=True)
+            raise ValidationError(_("Instagram channel couldn't be reconnected due to a technical issue"))
 
-        page_access_token = ""
-
-        while True:
-            response = requests.get(url, params=params)
-            response_json = response.json()
-
-            if response.status_code != 200:  # pragma: no cover
-                raise Exception("Failed to get a page long lived token")
-
-            for page in response_json.get("data", []):
-                if page["id"] == str(page_id):
-                    page_access_token = page["access_token"]
-                    name = page["name"]
-                    break
-
-            if page_access_token != "":
-                break
-
-            next_ = response_json["paging"].get("next", None)  # pragma: needs cover
-            if next_:  # pragma: needs cover
-                url = next_
-
-            else:  # pragma: needs cover
-                break
-
-        url = f"https://graph.facebook.com/v18.0/{page_id}/subscribed_apps"
+        url = f"https://graph.facebook.com/v22.0/{page_id}/subscribed_apps"
         params = {"access_token": page_access_token}
         data = {"subscribed_fields": "messages,messaging_postbacks"}
 
         response = requests.post(url, data=data, params=params)
 
         if response.status_code != 200:  # pragma: no cover
-            raise Exception("Failed to subscribe to app for webhook events")
+            logger.error(
+                "Failed to subscribe Instagram webhooks: status=%s body=%s",
+                response.status_code,
+                response.text,
+            )
+            raise ValidationError(_("Instagram channel couldn't be reconnected due to a technical issue"))
 
         channel.config[Channel.CONFIG_AUTH_TOKEN] = page_access_token
         channel.config[Channel.CONFIG_PAGE_NAME] = name

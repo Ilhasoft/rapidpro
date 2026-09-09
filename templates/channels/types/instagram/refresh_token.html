@@ -9,6 +9,11 @@
       {% trans "Everything looks good. No need to reconnect" %}
     {% endif %}
   </p>
+  {% if reconnect_error %}
+    <temba-alert level="error" class="my-4">
+      {{ reconnect_error }}
+    </temba-alert>
+  {% endif %}
 {% endblock pre-form %}
 {% block form %}
   <div class="mt-4 card">
@@ -28,49 +33,57 @@
 {% block extra-script %}
   {{ block.super }}
   <script type="text/javascript">
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId: '{{ facebook_app_id }}',
-        xfbml: true,
-        version: 'v18.0'
-      });
-    };
-  </script>
-  <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
-  <script type="text/javascript">
     onSpload(function() {
-      const connectFB = document.querySelector(".connect-facebook");
-      connectFB.addEventListener('click', function(evt) {
-        {% if facebook_login_instagram_config_id %}
-        FB.login(function(response) {
-          if (response.status === 'connected') {
-            document.getElementById("fb-user-id").value = response.authResponse.userID;
-            document.getElementById("user-access-token").value = response.authResponse.accessToken;
-            document.getElementById("refresh-token-form").submit();
-          } else {
+      var oauthRedirectUri = window.location.origin + "{{ oauth_redirect_path }}";
+      var oauthState = "{{ channel_uuid }}";
+      {% if facebook_login_instagram_config_id %}
+      document.querySelectorAll('.connect-facebook').forEach(function(element) {
+        element.addEventListener('click', function(evt) {
+          location.replace("https://www.facebook.com/v22.0/dialog/oauth?client_id={{ facebook_app_id }}&redirect_uri=" + oauthRedirectUri + "&state=" + oauthState + "&config_id={{ facebook_login_instagram_config_id }}&response_type=token&override_default_response_type=true");
+        });
+      });
+      {% else %}
+      document.querySelectorAll('.connect-facebook').forEach(function(element) {
+        element.addEventListener('click', function(evt) {
+          location.replace("https://www.facebook.com/v22.0/dialog/oauth?client_id={{ facebook_app_id }}&redirect_uri=" + oauthRedirectUri + "&state=" + oauthState + "&scope=instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list&response_type=token");
+        });
+      });
+      {% endif %}
+
+      var hash = window.location.hash.substring(1);
+      var result = hash.split('&').reduce(function(res, item) {
+        if (!item) {
+          return res;
+        }
+        var parts = item.split('=');
+        res[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
+        return res;
+      }, {});
+
+      if (result.error) {
+        document.getElementById("fb-status").style.display = 'none';
+        document.getElementById("fb-channel-error").style.display = 'block';
+        return;
+      }
+
+      var accessToken = result.long_lived_token || result.access_token;
+      if (accessToken) {
+        fetch("https://graph.facebook.com/me?access_token=" + encodeURIComponent(accessToken)).then(function(response) {
+          return response.json();
+        }).then(function(me) {
+          if (!me.id) {
             document.getElementById("fb-status").style.display = 'none';
             document.getElementById("fb-channel-error").style.display = 'block';
+            return;
           }
-        }, {
-          config_id: '{{ facebook_login_instagram_config_id }}'
+          document.getElementById("fb-user-id").value = me.id;
+          document.getElementById("user-access-token").value = accessToken;
+          document.getElementById("refresh-token-form").submit();
+        }).catch(function() {
+          document.getElementById("fb-status").style.display = 'none';
+          document.getElementById("fb-channel-error").style.display = 'block';
         });
-
-        {% else %}
-        FB.login(function(response) {
-          if (response.status === 'connected') {
-            document.getElementById("fb-user-id").value = response.authResponse.userID;
-            document.getElementById("user-access-token").value = response.authResponse.accessToken;
-            document.getElementById("refresh-token-form").submit();
-          } else {
-            document.getElementById("fb-status").style.display = 'none';
-            document.getElementById("fb-channel-error").style.display = 'block';
-          }
-        }, {
-          scope: 'instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_messaging,pages_read_engagement,pages_show_list'
-        });
-
-        {% endif %}
-      })
+      }
     });
   </script>
 {% endblock extra-script %}
