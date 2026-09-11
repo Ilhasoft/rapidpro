@@ -200,12 +200,23 @@ STORAGE_URL = f"https://{AWS_BUCKET_DOMAIN}"
 AWS_REGION = env("AWS_REGION", default=AWS_S3_REGION_NAME or "ap-south-1")
 
 # DEFAULT_FILE_STORAGE = env("DEFAULT_FILE_STORAGE", default="storages.backends.s3boto3.S3Boto3Storage")
-_default_s3_storage = {
-    "BACKEND": env("DEFAULT_FILE_STORAGE", default="storages.backends.s3boto3.S3Boto3Storage"),
+_s3_backend = env("DEFAULT_FILE_STORAGE", default="storages.backends.s3boto3.S3Boto3Storage")
+
+# exports and imports are downloaded via pre-signed URLs which need ResponseContentDisposition
+STORAGES["default"] = {
+    "BACKEND": _s3_backend,
     "OPTIONS": {"bucket_name": AWS_STORAGE_BUCKET_NAME},
 }
-STORAGES["default"] = _default_s3_storage
-STORAGES["public"] = _default_s3_storage
+# attachment URLs are persisted on the message so they can't be signed and expire
+STORAGES["public"] = {
+    "BACKEND": _s3_backend,
+    "OPTIONS": {
+        "bucket_name": AWS_STORAGE_BUCKET_NAME,
+        "signature_version": AWS_S3_SIGNATURE_VERSION,
+        "default_acl": "public-read",
+        "querystring_auth": False,
+    },
+}
 
 S3_NETWORK_TIMEOUT = env.int("S3_NETWORK_TIMEOUT", default=120)
 S3_NETWORK_RETRY_COUNT = env.int("S3_NETWORK_RETRY_COUNT", default=5)
@@ -435,3 +446,8 @@ CONTACT_IMPORT_BATCH_SIZE = env.int("CONTACT_IMPORT_BATCH_SIZE", default=100)
 # DynamoDB configuration
 DYNAMO_ENDPOINT_URL = env("DYNAMO_ENDPOINT_URL", default=None)
 DYNAMO_TABLE_PREFIX = env("DYNAMO_TABLE_PREFIX", default="Temba")
+
+# dedicated credentials for DynamoDB, falling back to the S3 ones when not set
+DYNAMO_AWS_ACCESS_KEY_ID = env("DYNAMO_AWS_ACCESS_KEY_ID", default=AWS_ACCESS_KEY_ID)
+DYNAMO_AWS_SECRET_ACCESS_KEY = env("DYNAMO_AWS_SECRET_ACCESS_KEY", default=AWS_SECRET_ACCESS_KEY)
+DYNAMO_AWS_REGION = env("DYNAMO_AWS_REGION", default=AWS_REGION)
